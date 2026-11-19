@@ -267473,7 +267473,7 @@ index f79bfc2..f240359 100644
 From 5e80648c172d424b37753f0535c6e2d353e074df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:19:43 +0800
-Subject: [PATCH 604/610] Android: the Local tab gets Stats, Settings and
+Subject: [PATCH 604/612] Android: the Local tab gets Stats, Settings and
  Account like Home
 
 With the Search tab on, the tabs have no bar across the top, so Home puts
@@ -267537,7 +267537,7 @@ index 7057102..dd43b8e 100644
 From 1445e31580e458755f53d1410c921e517538311c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 605/610] Android Local tab: chips stay at the top, search and
+Subject: [PATCH 605/612] Android Local tab: chips stay at the top, search and
  layout move into the header
 
 With the Search tab on nothing else is across the top, so the chips (and
@@ -267714,7 +267714,7 @@ index dd43b8e..e782829 100644
 From 8bc5e3489c1eea7321d99f89325ee8835f326386 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 606/610] Widget lyrics: redraw when the next word is due, not
+Subject: [PATCH 606/612] Widget lyrics: redraw when the next word is due, not
  once a second
 
 The widget was redrawn on a fixed second, so a word lit up to a second after
@@ -267828,7 +267828,7 @@ index 305c846..e555cbd 100644
 From dececfb353d3b70d287f8e042a525ac774297b15 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:26:33 +0800
-Subject: [PATCH 607/610] Home: Stats, Settings and Account sit on the Recent
+Subject: [PATCH 607/612] Home: Stats, Settings and Account sit on the Recent
  activity row
 
 With the Search tab on they were at the end of the chips row at the very
@@ -267906,7 +267906,7 @@ index 188dd20..2e7c44b 100644
 From fe1d90be991f7d1d35d33e5a30ae9ee3b92142a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:27:39 +0800
-Subject: [PATCH 608/610] Home: icons move to the Recent activity row only when
+Subject: [PATCH 608/612] Home: icons move to the Recent activity row only when
  the chips are hidden
 
 With the chips shown, Stats / Settings / Account stay at the end of the
@@ -267943,7 +267943,7 @@ index 2e7c44b..97265f8 100644
 From 665e3407905b79e776f41e5a4868fdb06fefb0e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:31:07 +0800
-Subject: [PATCH 609/610] Streams: try every visionOS identity, so one being
+Subject: [PATCH 609/612] Streams: try every visionOS identity, so one being
  closed does not cost the client
 
 Only VISIONOS was in the playback chains; VISIONOS_0_1 existed but was used
@@ -268053,7 +268053,7 @@ index 9fa09c8..b7e6b9d 100644
 From 45288afae5eedc09d15dec8a24f219f13a9b07ff Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:59:41 +0800
-Subject: [PATCH 610/610] Local tab: count it as a top-level page, so it gets
+Subject: [PATCH 610/612] Local tab: count it as a top-level page, so it gets
  the top bar or loses its height
 
 The top bar (search, Stats, Settings, Account) and its reserved height were
@@ -268153,6 +268153,3828 @@ index e7b8f84..1a0f38e 100644
              // Back out of a search to a tab: the next search starts from an empty box.
              onQueryChange(TextFieldValue())
          }
+-- 
+2.43.0
+
+From 18ed6c865483771adbff0cdd8b3d36d5f696ca25 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 21:28:57 +0800
+Subject: [PATCH 611/612] Desktop mini player lyrics follow the Fade / Sweep
+ setting
+
+The line being sung in the mini player always lit its words with the
+sweep. It now follows Settings > Lyrics > highlight, as the full player
+does: Fade brightens each word over the time it is sung (the full player's
+sungText, now shared), Sweep keeps the clipped light. Long lines still
+slide as they are sung in both.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/desktop/LyricsPane.kt    |  2 +-
+ .../com/dd3boh/outertune/desktop/Main.kt      |  1 +
+ .../dd3boh/outertune/desktop/MiniLyrics.kt    | 42 ++++++++++++++++---
+ .../dd3boh/outertune/desktop/MiniPlayer.kt    |  4 +-
+ 4 files changed, 42 insertions(+), 7 deletions(-)
+
+diff --git a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/LyricsPane.kt b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/LyricsPane.kt
+index edfa6ea..4cd8c06 100644
+--- a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/LyricsPane.kt
++++ b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/LyricsPane.kt
+@@ -324,7 +324,7 @@ private fun SyncedLyrics(
+  * centres as a single paragraph - a Row of words would break at the wrong places and centre each
+  * fragment on its own.
+  */
+-private fun sungText(line: LyricLine, positionMs: Long, onColour: Color): AnnotatedString =
++internal fun sungText(line: LyricLine, positionMs: Long, onColour: Color): AnnotatedString =
+     buildAnnotatedString {
+         line.words.forEach { word ->
+             val alpha = when {
+diff --git a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/Main.kt b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/Main.kt
+index bfec198..fcb57a0 100644
+--- a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/Main.kt
++++ b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/Main.kt
+@@ -2093,6 +2093,7 @@ internal fun App(
+                 onLyrics = { settings.miniPlayerLyrics = !settings.miniPlayerLyrics },
+                 lyricsShown = settings.miniPlayerLyrics,
+                 lyrics = lyrics,
++                lyricsHighlight = settings.lyricsHighlight,
+                 sleepRemainingMs = sleepRemaining,
+                 onSleepTimer = { showSleepDialog = true },
+                 onDismiss = dismissMiniPlayer,
+diff --git a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/MiniLyrics.kt b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/MiniLyrics.kt
+index 19d5ed5..45f33c6 100644
+--- a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/MiniLyrics.kt
++++ b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/MiniLyrics.kt
+@@ -60,7 +60,13 @@ import kotlin.math.abs
+  * [sungFraction] for how far along it is.
+  */
+ @Composable
+-internal fun MiniLyrics(lyrics: Lyrics, positionMs: () -> Long, modifier: Modifier = Modifier) {
++internal fun MiniLyrics(
++    lyrics: Lyrics,
++    positionMs: () -> Long,
++    modifier: Modifier = Modifier,
++    /** How the line being sung lights its words - Settings > Lyrics, the same as the full player. */
++    highlight: LyricsHighlight = LyricsHighlight.Fade,
++) {
+     // Changes only when the line does, so this recomposes once a line, not once a frame.
+     val current by remember(lyrics) { derivedStateOf { LrcParser.lineAt(lyrics.lines, positionMs()) } }
+     val focus = remember(lyrics) { Animatable(current.toFloat()) }
+@@ -107,6 +113,8 @@ internal fun MiniLyrics(lyrics: Lyrics, positionMs: () -> Long, modifier: Modifi
+             focus = { focus.value },
+             style = style,
+             sung = { if (line == null) 0f else sungFraction(line, lyrics.lines.getOrNull(current + 1)?.timeMs, songTime) },
++            highlight = highlight,
++            time = { songTime },
+             modifier = Modifier.fillMaxSize(),
+         )
+     }
+@@ -128,6 +136,9 @@ internal fun MiniLyricsLines(
+     modifier: Modifier = Modifier,
+     style: TextStyle = miniLyricStyle(),
+     sung: () -> Float = { 0f },
++    highlight: LyricsHighlight = LyricsHighlight.Sweep,
++    /** The song's time, for lighting words one by one in [LyricsHighlight.Fade]. */
++    time: () -> Long = { 0L },
+ ) {
+     val onSurface = MaterialTheme.colorScheme.onSurface
+     // Each line in its singer's colour when the lyrics are coloured by singer - see withSingerNames.
+@@ -175,7 +186,7 @@ internal fun MiniLyricsLines(
+                 val text = line.text.ifBlank { "♪" }
+                 val colour = colourOf(line.voice)
+                 if (index == current) {
+-                    SlidingLine(text, style, colour, sung, byWord = line.words.isNotEmpty(), modifier = placement)
++                    SlidingLine(text, style, colour, sung, line, highlight, time, modifier = placement)
+                 } else {
+                     Text(
+                         text = text,
+@@ -198,7 +209,20 @@ internal fun MiniLyricsLines(
+  * the right edge and it stops there.
+  */
+ @Composable
+-private fun SlidingLine(text: String, style: TextStyle, colour: Color, sung: () -> Float, byWord: Boolean, modifier: Modifier) {
++private fun SlidingLine(
++    text: String,
++    style: TextStyle,
++    colour: Color,
++    sung: () -> Float,
++    line: LyricLine,
++    highlight: LyricsHighlight,
++    time: () -> Long,
++    modifier: Modifier,
++) {
++    val byWord = line.words.isNotEmpty()
++    // Fade: each word brightens over the time it is sung, as in the full player - one text, with a
++    // colour per word. Sweep: a dimmed copy with a lit one cut off at the point reached over it.
++    val fade = byWord && highlight == LyricsHighlight.Fade
+     var textLayout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
+     // How far across the line the singing has got, in the text's own pixels - from the text's
+     // layout, so the edge of the lit part falls where the letters are rather than at a share of
+@@ -214,7 +238,15 @@ private fun SlidingLine(text: String, style: TextStyle, colour: Color, sung: ()
+     }
+     Layout(
+         content = {
+-            Text(
++            if (fade) {
++                Text(
++                    text = sungText(line, time(), colour),
++                    style = style,
++                    maxLines = 1,
++                    softWrap = false,
++                    onTextLayout = { textLayout = it },
++                )
++            } else Text(
+                 text = text,
+                 color = if (byWord) colour.copy(alpha = UNSUNG_ALPHA) else colour,
+                 style = style,
+@@ -224,7 +256,7 @@ private fun SlidingLine(text: String, style: TextStyle, colour: Color, sung: ()
+             )
+             // [byWord]: the same line again, fully lit and cut off at the point reached, over the
+             // dimmed one - so the words light as they are sung.
+-            if (byWord) {
++            if (byWord && !fade) {
+                 Text(
+                     text = text,
+                     color = colour,
+diff --git a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/MiniPlayer.kt b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/MiniPlayer.kt
+index 6f8516a..7c40263 100644
+--- a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/MiniPlayer.kt
++++ b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/MiniPlayer.kt
+@@ -108,6 +108,8 @@ internal fun PlayerBar(
+     /** Whether the bar is showing the song's lyrics in its middle. */
+     lyricsShown: Boolean = false,
+     lyrics: Lyrics? = null,
++    /** How the lyrics in the middle light their words - see [LyricsHighlight]. */
++    lyricsHighlight: LyricsHighlight = LyricsHighlight.Fade,
+     /** Time left on the sleep timer, 0 for "end of this song", or null when none is set. */
+     sleepRemainingMs: Long? = null,
+     onSleepTimer: () -> Unit = {},
+@@ -239,7 +241,7 @@ internal fun PlayerBar(
+                         )
+                     }
+                 },
+-                lyrics = if (showLyrics) ({ MiniLyrics(lyrics!!, positionMs, Modifier.fillMaxSize()) }) else null,
++                lyrics = if (showLyrics) ({ MiniLyrics(lyrics!!, positionMs, Modifier.fillMaxSize(), lyricsHighlight) }) else null,
+                 modifier = Modifier.weight(1f).fillMaxHeight(),
+             )
+ 
+-- 
+2.43.0
+
+From 3129581ba5730a051407789656cc3152523538dd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 10:24:59 +0800
+Subject: [PATCH 612/612] Widget lyrics: highlight style and smooth-word
+ settings, lit by stage within a word
+
+The widget lit a whole word at once. Words now carry their end times, and
+the word being sung is lit in eight stages, the widget redrawn once per
+stage: as a fade (the word brightening) or a sweep (a soft edge crossing
+it). Two settings in the widget editor, shown when the widget has lyrics:
+Highlight style (same as the player / sweep / fade) and Smooth word
+animation (off lights each word at once and redraws far less - the
+battery-friendly choice).
+
+A widget is redrawn through the launcher, so this is a stepped
+approximation of the player's per-frame highlight, not a copy of it.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/constants/PreferenceKeys.kt     | 14 +++
+ .../dd3boh/outertune/playback/MusicService.kt |  6 +-
+ .../screens/settings/WidgetLayoutSettings.kt  | 33 +++++++
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 54 ++++++++++-
+ .../dd3boh/outertune/widget/WidgetLyrics.kt   | 91 ++++++++++++++-----
+ app/src/main/res/values/strings.xml           |  5 +
+ 6 files changed, 174 insertions(+), 29 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index f4f6ffa..586d55e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -83,6 +83,20 @@ val PlayerButtonsKey = stringPreferencesKey("playerButtons")
+ val WidgetLayoutKey = stringPreferencesKey("widgetLayout")
+ /** The small (one row) and medium (two row) widget arrangements; unset means made from the large one. */
+ val WidgetLayoutSmallKey = stringPreferencesKey("widgetLayoutSmall")
++
++/**
++ * How the widget lights the words of the line being sung - a [WidgetLyricsStyle]. The widget is
++ * redrawn in stages rather than every frame, so both styles are stepped approximations of the
++ * player's.
++ */
++val WidgetLyricsStyleKey = stringPreferencesKey("widgetLyricsStyle")
++enum class WidgetLyricsStyle { FOLLOW, SWEEP, FADE }
++
++/**
++ * Whether the widget redraws several times a word so it lights smoothly (default), or once a word,
++ * which looks steppier but redraws the widget far less often.
++ */
++val WidgetLyricsSmoothKey = booleanPreferencesKey("widgetLyricsSmooth")
+ val WidgetLayoutMediumKey = stringPreferencesKey("widgetLayoutMedium")
+ /** Hides the explanatory text under settings, leaving titles, values and errors. */
+ val HideSettingsDescriptionsKey = booleanPreferencesKey("hideSettingsDescriptions")
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 500e266..8beb50d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -695,7 +695,7 @@ class MusicService : MediaLibraryService(),
+                     }.getOrDefault(emptyList())
+                 } else emptyList()
+                 var lyricLines = readLyrics()
+-                PlayerWidget.setLyrics(WidgetLyrics.frameAt(lyricLines, player.currentPosition))
++                PlayerWidget.setLyrics(WidgetLyrics.frameAt(lyricLines, player.currentPosition, PlayerWidget.lyricsSmooth))
+                 runCatching {
+                     PlayerWidget.update(
+                         this@MusicService, metadata, playing, fraction(),
+@@ -716,11 +716,11 @@ class MusicService : MediaLibraryService(),
+                 while (playing) {
+                     val lyricsOn = PlayerWidget.wantsLyrics && lyricLines.isNotEmpty()
+                     delay(
+-                        if (lyricsOn) WidgetLyrics.nextChangeDelay(lyricLines, player.currentPosition)
++                        if (lyricsOn) WidgetLyrics.nextChangeDelay(lyricLines, player.currentPosition, PlayerWidget.lyricsSmooth)
+                         else WIDGET_PROGRESS_INTERVAL_MS
+                     )
+                     if (lyricLines.isEmpty() && ++ticks % 5 == 0) lyricLines = readLyrics()
+-                    val frame = WidgetLyrics.frameAt(lyricLines, player.currentPosition)
++                    val frame = WidgetLyrics.frameAt(lyricLines, player.currentPosition, PlayerWidget.lyricsSmooth)
+                     val now = android.os.SystemClock.elapsedRealtime()
+                     if (frame == lastFrame && now - lastPushAt < WIDGET_PROGRESS_INTERVAL_MS - 100) continue
+                     lastFrame = frame
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+index edf8eab..bbfe850 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+@@ -100,6 +100,12 @@ import com.dd3boh.outertune.constants.SliderWeight
+ import com.dd3boh.outertune.constants.SliderWeightKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.constants.WidgetLayoutKey
++import com.dd3boh.outertune.constants.WidgetLyricsSmoothKey
++import com.dd3boh.outertune.constants.WidgetLyricsStyle
++import com.dd3boh.outertune.constants.WidgetLyricsStyleKey
++import com.dd3boh.outertune.ui.component.EnumListPreference
++import com.dd3boh.outertune.ui.component.SwitchPreference
++import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.constants.WidgetLayoutMediumKey
+ import com.dd3boh.outertune.constants.WidgetLayoutSmallKey
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+@@ -249,6 +255,33 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
+             Spacer(Modifier.width(8.dp))
+             Text(stringResource(R.string.widget_layout_reset))
+         }
++
++        // How the lyrics piece lights the words - only shown when the arrangement has one.
++        if (WidgetElement.LYRICS in layout) {
++            Spacer(Modifier.height(12.dp))
++            Text(stringResource(R.string.widget_lyrics_title), style = MaterialTheme.typography.labelLarge)
++            val (lyricsStyle, onLyricsStyle) = rememberEnumPreference(WidgetLyricsStyleKey, WidgetLyricsStyle.FOLLOW)
++            EnumListPreference(
++                title = { Text(stringResource(R.string.widget_lyrics_style)) },
++                selectedValue = lyricsStyle,
++                onValueSelected = onLyricsStyle,
++                values = WidgetLyricsStyle.entries,
++                valueText = {
++                    when (it) {
++                        WidgetLyricsStyle.FOLLOW -> stringResource(R.string.widget_lyrics_style_follow)
++                        WidgetLyricsStyle.SWEEP -> stringResource(R.string.lyrics_highlight_sweep)
++                        WidgetLyricsStyle.FADE -> stringResource(R.string.lyrics_highlight_fade)
++                    }
++                },
++            )
++            val (smooth, onSmooth) = rememberPreference(WidgetLyricsSmoothKey, true)
++            SwitchPreference(
++                title = { Text(stringResource(R.string.widget_lyrics_smooth)) },
++                description = stringResource(R.string.widget_lyrics_smooth_desc),
++                checked = smooth,
++                onCheckedChange = onSmooth,
++            )
++        }
+         Spacer(Modifier.height(24.dp))
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index 7f2c1c4..b6e8626 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -51,9 +51,14 @@ import com.dd3boh.outertune.constants.LiquidColorSchemeKey
+ import com.dd3boh.outertune.constants.LiquidShapeStyle
+ import com.dd3boh.outertune.constants.LiquidShapeStyleKey
+ import com.dd3boh.outertune.constants.MediaSessionConstants
++import com.dd3boh.outertune.constants.LyricHighlightStyle
++import com.dd3boh.outertune.constants.LyricHighlightStyleKey
+ import com.dd3boh.outertune.constants.WidgetLayoutKey
+ import com.dd3boh.outertune.constants.WidgetLayoutMediumKey
+ import com.dd3boh.outertune.constants.WidgetLayoutSmallKey
++import com.dd3boh.outertune.constants.WidgetLyricsSmoothKey
++import com.dd3boh.outertune.constants.WidgetLyricsStyle
++import com.dd3boh.outertune.constants.WidgetLyricsStyleKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.SliderStyle
+@@ -171,6 +176,9 @@ object PlayerWidget {
+      * on its long side, drawn in the widget's own shape so nothing in it is stretched.
+      */
+     private const val ART_PX = 224
++
++    /** How many characters the sweep's soft edge spans. */
++    private const val SWEEP_SOFT_CHARS = 2f
+     private const val BG_LONG_PX = 480
+     private const val ICON_PX = 80
+ 
+@@ -195,6 +203,8 @@ object PlayerWidget {
+         val liquidShape: LiquidShapeStyle = LiquidShapeStyle.PETAL,
+         val liquidBackdrop: LiquidColorScheme = LiquidColorScheme.SURFACE,
+         val dot: Boolean = false,
++        val lyricsStyle: LyricHighlightStyle = LyricHighlightStyle.SWEEP,
++        val lyricsSmooth: Boolean = true,
+     )
+ 
+     /** The colours one look resolves to - see [colours]. */
+@@ -220,6 +230,9 @@ object PlayerWidget {
+     @Volatile private var lastMedium: WidgetLayout? = null
+     @Volatile private var lastLyrics: WidgetLyrics.Frame? = null
+ 
++    /** Whether the lyrics are lit a stage at a time within a word - see [WidgetLyricsSmoothKey]. */
++    val lyricsSmooth: Boolean get() = lastLook.lyricsSmooth
++
+     /** Whether any placed widget's arrangement shows lyrics - the service only works them out if so. */
+     val wantsLyrics: Boolean get() = allLayouts().any { WidgetElement.LYRICS in it }
+ 
+@@ -280,6 +293,14 @@ object PlayerWidget {
+                 ?: LiquidShapeStyle.PETAL,
+             liquidBackdrop = prefs[LiquidColorSchemeKey]?.let { stored -> LiquidColorScheme.entries.find { it.name == stored } }
+                 ?: LiquidColorScheme.SURFACE,
++            lyricsStyle = when (prefs[WidgetLyricsStyleKey]?.let { stored -> WidgetLyricsStyle.entries.find { it.name == stored } }) {
++                WidgetLyricsStyle.SWEEP -> LyricHighlightStyle.SWEEP
++                WidgetLyricsStyle.FADE -> LyricHighlightStyle.FADE
++                // Follow the player's own setting (the app's default is the sweep).
++                else -> prefs[LyricHighlightStyleKey]?.let { stored -> LyricHighlightStyle.entries.find { it.name == stored } }
++                    ?: LyricHighlightStyle.SWEEP
++            },
++            lyricsSmooth = prefs[WidgetLyricsSmoothKey] ?: true,
+         )
+         lastLayout = WidgetLayout.parse(prefs[WidgetLayoutKey])
+         lastSmall = prefs[WidgetLayoutSmallKey]?.takeIf { it.isNotBlank() }?.let { WidgetLayout.parse(it, WidgetLayout.SMALL_ROWS) }
+@@ -528,12 +549,35 @@ object PlayerWidget {
+             WidgetElement.LYRICS -> RemoteViews(context.packageName, R.layout.widget_el_lyrics).apply {
+                 val frame = lastLyrics
+                 val faint = ColorUtils.setAlphaComponent(colours.text, 0x73)
+-                // The words sung so far in the text colour, the rest of the line dimmed - spans travel
+-                // with the text through RemoteViews, so this needs no picture.
++                // Spans travel with the text through RemoteViews, so this needs no picture. Words
++                // already sung in the text colour, the rest dimmed; the word being sung is lit by
++                // stage, as a fade (the whole word brightening) or a sweep (a soft edge crossing it).
+                 val current = SpannableString(frame?.current.orEmpty()).apply {
+-                    val sung = (frame?.sungChars ?: 0).coerceIn(0, length)
+-                    if (sung > 0) setSpan(ForegroundColorSpan(colours.text), 0, sung, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+-                    if (sung < length) setSpan(ForegroundColorSpan(faint), sung, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
++                    val lit = (frame?.litChars ?: 0).coerceIn(0, length)
++                    val from = (frame?.wordFrom ?: 0).coerceIn(lit, length)
++                    val to = (frame?.wordTo ?: 0).coerceIn(from, length)
++                    val staged = frame != null && frame.wordStep >= 0 && to > from
++                    fun paint(start: Int, end: Int, colour: Int) {
++                        if (end > start) setSpan(ForegroundColorSpan(colour), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
++                    }
++                    paint(0, lit, colours.text)
++                    if (staged) {
++                        paint(lit, from, faint)
++                        val progress = (frame!!.wordStep + 1f) / WidgetLyrics.STEPS
++                        if (look.lyricsStyle == LyricHighlightStyle.FADE) {
++                            paint(from, to, ColorUtils.blendARGB(faint, colours.text, progress))
++                        } else {
++                            // The edge crosses the word, soft over about two characters.
++                            val edge = from + progress * (to - from)
++                            for (i in from until to) {
++                                val t = ((edge - i) / SWEEP_SOFT_CHARS).coerceIn(0f, 1f)
++                                paint(i, i + 1, ColorUtils.blendARGB(faint, colours.text, t))
++                            }
++                        }
++                        paint(to, length, faint)
++                    } else {
++                        paint(lit, length, faint)
++                    }
+                 }
+                 setTextViewText(R.id.el_text, current)
+                 setTextColor(R.id.el_text, colours.text)
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+index e555cbd..6032f0d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+@@ -21,11 +21,29 @@ import org.akanework.gramophone.logic.utils.SemanticLyrics
+  */
+ object WidgetLyrics {
+ 
+-    /** One line: when it starts, its text, and for each word when it starts and where it ends. */
+-    class Line(val start: Long, val text: String, val words: List<Pair<Long, Int>>)
++    /** One word: when it is sung ([startMs]..[endMs]) and the characters of its line it covers. */
++    class Word(val startMs: Long, val endMs: Long, val startChar: Int, val endChar: Int)
+ 
+-    /** What the widget shows: [sungChars] of [current] are lit, the rest dimmed. */
+-    data class Frame(val previous: String?, val current: String, val sungChars: Int, val next: String?)
++    /** One line: when it starts, its text, and its words if they carry timings. */
++    class Line(val start: Long, val text: String, val words: List<Word>)
++
++    /**
++     * What the widget shows: the first [litChars] of [current] are fully lit and the rest dimmed,
++     * except the word at [wordFrom]..[wordTo], which is [wordStep] of [STEPS] of the way through
++     * being sung (-1 when no word is mid-way, or when smooth words are off).
++     */
++    data class Frame(
++        val previous: String?,
++        val current: String,
++        val litChars: Int,
++        val next: String?,
++        val wordFrom: Int = 0,
++        val wordTo: Int = 0,
++        val wordStep: Int = -1,
++    )
++
++    /** How many stages a word is lit in - the widget redraws once per stage, no finer. */
++    const val STEPS = 8
+ 
+     /**
+      * How far ahead the lit words run: about how long a redraw takes to get through the launcher, so
+@@ -34,7 +52,7 @@ object WidgetLyrics {
+     private const val LEAD_MS = 300L
+ 
+     /** The shortest and longest wait between redraws - see [nextChangeDelay]. */
+-    private const val MIN_DELAY_MS = 200L
++    private const val MIN_DELAY_MS = 150L
+     private const val MAX_DELAY_MS = 2_000L
+ 
+     /** Timed lines, in order. Empty for unsynced lyrics - there is no "current line" to show then. */
+@@ -52,40 +70,71 @@ object WidgetLyrics {
+                     start = line.start.toLong(),
+                     text = line.text,
+                     words = line.words.orEmpty()
+-                        .map { it.timeRange.first.toLong() to (it.charRange.last + 1).coerceAtMost(line.text.length) }
+-                        .sortedBy { it.first },
++                        .map {
++                            val from = it.timeRange.first.toLong()
++                            val to = it.timeRange.last.toLong().takeIf { end -> end > from } ?: (from + FALLBACK_WORD_MS)
++                            Word(
++                                from, to,
++                                it.charRange.first.coerceIn(0, line.text.length),
++                                (it.charRange.last + 1).coerceAtMost(line.text.length),
++                            )
++                        }
++                        .sortedBy { it.startMs },
+                 )
+             }
+             .sortedBy { it.start }
+     }
+ 
+-    /** The lines around [positionMs]; before the first line, that line coming up. Null for none. */
+-    fun frameAt(lines: List<Line>, positionMs: Long): Frame? {
++    /** How long a word lasts when its timings give no end. */
++    private const val FALLBACK_WORD_MS = 400L
++
++    /**
++     * The lines around [positionMs]; before the first line, that line coming up. Null for none.
++     * With [smooth], the word being sung is reported part-way lit ([Frame.wordStep]); without, a
++     * word lights whole as it starts, which needs a redraw per word rather than several.
++     */
++    fun frameAt(lines: List<Line>, positionMs: Long, smooth: Boolean = true): Frame? {
+         if (lines.isEmpty()) return null
+         val index = lines.indexOfLast { it.start <= positionMs }
+         if (index < 0) return Frame(null, lines[0].text, 0, lines.getOrNull(1)?.text)
+         val line = lines[index]
+-        val sung = if (line.words.isEmpty()) {
+-            line.text.length
++        val previous = lines.getOrNull(index - 1)?.text
++        val next = lines.getOrNull(index + 1)?.text
++        if (line.words.isEmpty()) return Frame(previous, line.text, line.text.length, next)
++        val at = positionMs + LEAD_MS
++        val active = line.words.firstOrNull { it.startMs <= at && at < it.endMs }
++        return if (active != null && smooth) {
++            val lit = line.words.lastOrNull { it.endMs <= at }?.endChar ?: 0
++            val step = ((at - active.startMs) * STEPS / (active.endMs - active.startMs)).toInt().coerceIn(0, STEPS - 1)
++            Frame(previous, line.text, lit, next, active.startChar, active.endChar, step)
+         } else {
+-            line.words.lastOrNull { it.first <= positionMs + LEAD_MS }?.second ?: 0
++            // Not smooth: a word is lit whole from its start.
++            val lit = line.words.lastOrNull { it.startMs <= at }?.endChar ?: 0
++            Frame(previous, line.text, lit, next)
+         }
+-        return Frame(lines.getOrNull(index - 1)?.text, line.text, sung, lines.getOrNull(index + 1)?.text)
+     }
+ 
+     /**
+-     * How long until the widget next needs redrawing for [positionMs]: when the next word is due to
+-     * light (less the lead) or the next line starts, whichever is first. Redrawing on a fixed
+-     * second instead lit words up to a second late, which read as slow, stepping lyrics.
++     * How long until the widget next needs redrawing for [positionMs]: the next stage of the word
++     * being sung ([smooth]), the next word, or the next line, whichever is first. Redrawing on a
++     * fixed second instead lit words up to a second late, which read as slow, stepping lyrics.
+      */
+-    fun nextChangeDelay(lines: List<Line>, positionMs: Long): Long {
++    fun nextChangeDelay(lines: List<Line>, positionMs: Long, smooth: Boolean = true): Long {
+         val index = lines.indexOfLast { it.start <= positionMs }
+-        var next = lines.getOrNull(index + 1)?.start ?: Long.MAX_VALUE
++        var next = lines.getOrNull(index + 1)?.start?.minus(positionMs) ?: Long.MAX_VALUE
+         if (index >= 0) {
+-            lines[index].words.firstOrNull { it.first > positionMs + LEAD_MS }
+-                ?.let { next = minOf(next, it.first - LEAD_MS) }
++            val at = positionMs + LEAD_MS
++            val words = lines[index].words
++            val active = words.firstOrNull { it.startMs <= at && at < it.endMs }
++            if (active != null && smooth) {
++                val stepMs = ((active.endMs - active.startMs) / STEPS).coerceAtLeast(1)
++                val done = (at - active.startMs) / stepMs
++                next = minOf(next, active.startMs + (done + 1) * stepMs - at)
++            } else {
++                words.firstOrNull { it.startMs > at }?.let { next = minOf(next, it.startMs - at) }
++            }
+         }
+-        return if (next == Long.MAX_VALUE) MAX_DELAY_MS else (next - positionMs).coerceIn(MIN_DELAY_MS, MAX_DELAY_MS)
++        return if (next == Long.MAX_VALUE) MAX_DELAY_MS else next.coerceIn(MIN_DELAY_MS, MAX_DELAY_MS)
+     }
+ 
+     /** Whether any line carries word timings, so the widget is worth redrawing more often. */
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 4a08bf5..7b86071 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -287,6 +287,11 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="widget_next">Next</string>
+     <string name="widget_up_next">Next: %1$s</string>
+     <string name="widget_layout_title">Widget editor</string>
++    <string name="widget_lyrics_title">Lyrics</string>
++    <string name="widget_lyrics_style">Highlight style</string>
++    <string name="widget_lyrics_style_follow">Same as the player</string>
++    <string name="widget_lyrics_smooth">Smooth word animation</string>
++    <string name="widget_lyrics_smooth_desc">Redraw several times a word so it lights gradually. Off lights each word at once and redraws the widget far less.</string>
+     <string name="grp_widget">Home-screen widget</string>
+     <string name="widget_layout_summary">Choose what the widget shows, and where</string>
+     <string name="widget_layout_row">Row %1$d</string>
+-- 
+2.43.0
+
+From 2446dd8084d2c684b52868fa509ad1f991807523 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 10:30:04 +0800
+Subject: [PATCH] Add Simple reactive player background (ported from
+ InterTune's Living blur)
+
+Cover reduced to soft colour patches that move with the music, driven by an
+audio tap in front of the output sink. Costs nothing unless on screen; stands
+still on battery saver. Colours setting: cover's main colours or the cover itself.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/constants/PreferenceKeys.kt     |    9 +
+ .../dd3boh/outertune/constants/Settings.kt    |    8 +-
+ .../com/dd3boh/outertune/playback/LevelTap.kt |  261 ++++
+ .../dd3boh/outertune/playback/MusicLevels.kt  |  637 ++++++++
+ .../dd3boh/outertune/playback/MusicService.kt |    5 +
+ .../outertune/ui/player/LivingBackground.kt   |  418 ++++++
+ .../dd3boh/outertune/ui/player/LivingField.kt | 1284 +++++++++++++++++
+ .../com/dd3boh/outertune/ui/player/Player.kt  |   27 +
+ .../screens/settings/fragments/PlayerFrag.kt  |   21 +
+ app/src/main/res/values/strings-ot.xml        |    4 +
+ 10 files changed, 2673 insertions(+), 1 deletion(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/playback/LevelTap.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/playback/MusicLevels.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/player/LivingBackground.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/player/LivingField.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 586d55e..ea761d2 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -21,6 +21,15 @@ val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
+  */
+ val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
+ 
++/** How strongly Simple reactive answers the music, 0 to 1. */
++val LivingStrengthKey = floatPreferencesKey("livingBlurStrength")
++
++/** How softly Simple reactive follows the music, 0 to 1. */
++val LivingSmoothingKey = floatPreferencesKey("livingBlurSmoothing")
++
++/** What Simple reactive is coloured from: a LivingColours. */
++val LivingColoursKey = stringPreferencesKey("livingBlurColours")
++
+ /** Drive the Liquid background's blobs from the actual audio instead of a fixed ambient drift. */
+ val LiquidAudioReactiveKey = booleanPreferencesKey("liquidAudioReactive")
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+index 6a5818e..4f62c4b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+@@ -16,9 +16,15 @@ enum class DarkMode {
+ enum class StatMetric { TIME_LISTENED, TIMES_PLAYED }
+ 
+ enum class PlayerBackgroundStyle {
+-    FOLLOW_THEME, GRADIENT, BLUR, LIQUID, FROSTED
++    FOLLOW_THEME, GRADIENT, BLUR, LIQUID, FROSTED,
++
++    /** The blurred cover as patches of colour that move with the music (ui/player/LivingBackground.kt). */
++    SIMPLE_REACTIVE
+ }
+ 
++/** What Simple reactive is coloured from: the cover's main colours, or the cover itself. */
++enum class LivingColours { MAIN, COVER }
++
+ /** What sits behind the Liquid style's colour blobs. */
+ enum class LiquidColorScheme {
+     /** The normal Material surface colour, same as every other style. */
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/LevelTap.kt b/app/src/main/java/com/dd3boh/outertune/playback/LevelTap.kt
+new file mode 100644
+index 0000000..9d1b33e
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/playback/LevelTap.kt
+@@ -0,0 +1,261 @@
++/*
++ * Copyright (C) 2026 InterTune
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.playback
++
++import androidx.media3.common.C
++import androidx.media3.common.Format
++import androidx.media3.common.MimeTypes
++import androidx.media3.exoplayer.audio.AudioSink
++import androidx.media3.exoplayer.audio.ForwardingAudioSink
++import java.nio.ByteBuffer
++import java.util.concurrent.atomic.AtomicInteger
++import kotlin.math.abs
++
++/**
++ * Measures the music on its way to the output, for the player's living background, and answers
++ * "how loud is what I am hearing right now".
++ *
++ * Those are two different moments. Samples are handed to the output a quarter of a second or more
++ * before they are heard, and with Bluetooth headphones later still. So every level is kept under
++ * the time its samples carry, and the question is answered with the time the output says it has
++ * reached, which the player asks it each time its thread wakes while it plays, and the clock
++ * carries on from there. A picture driven by the samples as they arrive would move ahead of the
++ * music by a different amount on every device.
++ *
++ * This is not android.media.audiofx.Visualizer, which would do the same from outside: that one
++ * needs the microphone permission, and a music player asking for the microphone is a bad look.
++ *
++ * It costs nothing unless [wanted]: the samples are not looked at. It hears nothing when the audio
++ * is handed to the system still encoded (audio offload), and then [now] simply has no answer.
++ */
++class LevelTap(private val nanoTime: () -> Long = System::nanoTime) {
++
++    private val watchers = AtomicInteger()
++
++    /** True while something is drawing the levels. Nothing is measured otherwise. */
++    val wanted get() = watchers.get() > 0
++
++    /** Whoever draws the levels says so, and says when it stops: one [unwatch] for every [watch]. */
++    fun watch() {
++        watchers.incrementAndGet()
++    }
++
++    fun unwatch() {
++        watchers.updateAndGet { if (it > 0) it - 1 else 0 }
++    }
++
++    private val timeline = LevelTimeline()
++
++    // What follows is touched by the thread that plays only.
++    private var analyser: LevelAnalyser? = null
++    private var sixteenBit = true
++    private var channels = 0
++    private var sampleRate = 0
++    private var bufferTimeUs = 0L
++    private var bufferFirstSample = 0L
++    private var samplesGiven = 0L
++    private var lastBufferTimeUs = C.TIME_UNSET
++    private var nextBufferTimeUs = C.TIME_UNSET
++    private var measuring = false
++    private var measuredBefore = false
++    private var measuredAtNanos = 0L
++
++    /** True when the output was emptied or another stream began since the last buffer measured: what comes may be another song. */
++    private var parted = false
++
++    // Written by the thread that plays, read by the one that draws.
++    @Volatile
++    private var heardUs = C.TIME_UNSET
++
++    @Volatile
++    private var heardAtNanos = 0L
++
++    @Volatile
++    private var playing = false
++
++    /** The output was set up for a stream. [pcm] is false when the audio goes to it still encoded. */
++    fun configured(pcm: Boolean, encoding: Int, sampleRate: Int, channels: Int) {
++        val readable = pcm && sampleRate > 0 && channels > 0 &&
++            (encoding == C.ENCODING_PCM_16BIT || encoding == C.ENCODING_PCM_FLOAT)
++        if (!readable) {
++            analyser = null
++            return
++        }
++        if (analyser != null && sampleRate == this.sampleRate && channels == this.channels && sixteenBit == (encoding == C.ENCODING_PCM_16BIT)) return
++        sixteenBit = encoding == C.ENCODING_PCM_16BIT
++        this.sampleRate = sampleRate
++        this.channels = channels
++        samplesGiven = 0
++        val halfFrameUs = (MusicLevels.FRAME_SECONDS * 500_000).toLong()
++        analyser = LevelAnalyser(sampleRate) { endsAtSample, levels ->
++            // under the middle of the 20 ms it was measured over
++            timeline.add(bufferTimeUs + (endsAtSample - bufferFirstSample) * 1_000_000L / sampleRate - halfFrameUs, levels)
++        }
++    }
++
++    /**
++     * Samples offered to the output, from [buffer]'s position to its limit, the first of them to
++     * be heard at [timeUs]. The output may be offered the same buffer again when it could not take
++     * all of it; it is measured once.
++     */
++    fun buffer(buffer: ByteBuffer, timeUs: Long) {
++        val analyser = analyser
++        if (analyser == null) {
++            measuring = false
++            return
++        }
++        // Offered again, which also happens once a second all through a pause. It was measured
++        // once, and it is not music that went by unmeasured, whoever is looking at this moment:
++        // asked the other way round, every pause started the song's shape over.
++        if (timeUs == lastBufferTimeUs) return
++        if (!wanted) {
++            measuring = false
++            return
++        }
++        lastBufferTimeUs = timeUs
++
++        // Starting to listen, or the audio is not where the last buffer ended: a seek, a skipped silence.
++        val nanos = nanoTime()
++        if (!measuring || nextBufferTimeUs == C.TIME_UNSET || abs(timeUs - nextBufferTimeUs) > JUMP_US) {
++            analyser.jump()
++            // Then music went by unmeasured, or this is other music, and what the analyser
++            // remembers is older by the time that has passed: it only forgets by the frame. A
++            // pause is not that. The audio goes on where it stopped, and nothing has aged.
++            if (measuredBefore && nanos - measuredAtNanos > IDLE_NANOS) analyser.aged((nanos - measuredAtNanos) / 1e9, sameSong = !parted)
++        }
++        parted = false
++        measuring = true
++        measuredBefore = true
++        measuredAtNanos = nanos
++
++        val frames = (buffer.limit() - buffer.position()) / ((if (sixteenBit) 2 else 4) * channels)
++        bufferTimeUs = timeUs
++        bufferFirstSample = samplesGiven
++        samplesGiven += frames
++        nextBufferTimeUs = timeUs + frames * 1_000_000L / sampleRate
++        if (sixteenBit) analyser.pcm16(buffer, channels) else analyser.pcmFloat(buffer, channels)
++    }
++
++    /** Where the output says it has got to, in the same time as the buffers carry. */
++    fun position(positionUs: Long) {
++        if (positionUs == AudioSink.CURRENT_POSITION_NOT_SET) return
++        heardAtNanos = nanoTime()
++        heardUs = positionUs
++    }
++
++    fun playing(isPlaying: Boolean) {
++        playing = isPlaying
++    }
++
++    /**
++     * What comes next is another stream: the next song, played on from the last without a gap, so
++     * that the output is not emptied and the times run on. What was building in the old song is
++     * not building in the new one. What is still to be heard of the old one stays.
++     */
++    fun discontinuity() {
++        nextBufferTimeUs = C.TIME_UNSET
++        parted = true
++    }
++
++    /** The output was emptied: a seek, another song, a stop. Nothing kept is about to be heard any more. */
++    fun flushed() {
++        timeline.clear()
++        lastBufferTimeUs = C.TIME_UNSET
++        nextBufferTimeUs = C.TIME_UNSET
++        heardUs = C.TIME_UNSET
++        parted = true
++    }
++
++    /**
++     * The levels of what is being heard now, into [into] (the three ranges, and with room for
++     * [MusicLevels.VALUES] how much is going on and where the song is in its shape). False when
++     * there is nothing to go by: nothing playing, not [wanted] until a moment ago, or audio that
++     * cannot be read here.
++     *
++     * [aheadUs] asks for what will be heard that much later instead, which is known, since the
++     * samples are measured before they are heard. Whoever draws them asks ahead by the time its
++     * drawing takes to reach the screen. Asked for more than has been measured, it answers with
++     * the latest there is.
++     */
++    fun now(into: FloatArray, aheadUs: Long = 0): Boolean {
++        val at = heardUs
++        if (at == C.TIME_UNSET || !playing) return false
++        val since = (nanoTime() - heardAtNanos) / 1000
++        // While it plays the output is asked where it is each time the player's thread wakes. That
++        // was every 10 ms; it now sleeps until half of what the output holds has played: 125 ms
++        // with the usual quarter of a second, 375 ms at most, since media3 gives an output no more
++        // than 750 ms. About the same at any tempo: a slower one fills the output with less of the
++        // song. Not asked for this long, four times the longest sleep, it is not playing, whatever
++        // was said last.
++        if (since < 0 || since > ASKED_LATELY_US) return false
++        return timeline.read(at + since + aheadUs.coerceAtLeast(0), into)
++    }
++
++    companion object {
++        private const val JUMP_US = 100_000L
++        private const val ASKED_LATELY_US = 1_500_000L
++        private const val IDLE_NANOS = 1_000_000_000L
++    }
++}
++
++/** An audio output that lets a [LevelTap] look at what goes through it. It changes nothing. */
++class LevelTapAudioSink(sink: AudioSink, private val tap: LevelTap) : ForwardingAudioSink(sink) {
++
++    /** Set when the tap failed once. Playback is not to be risked for a background picture. */
++    private var broken = false
++
++    override fun configure(inputFormat: Format, specifiedBufferSize: Int, outputChannels: IntArray?) {
++        super.configure(inputFormat, specifiedBufferSize, outputChannels)
++        tap.configured(
++            pcm = inputFormat.sampleMimeType == MimeTypes.AUDIO_RAW,
++            encoding = inputFormat.pcmEncoding,
++            sampleRate = inputFormat.sampleRate,
++            channels = inputFormat.channelCount,
++        )
++    }
++
++    override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
++        if (!broken) {
++            try {
++                tap.buffer(buffer, presentationTimeUs)
++            } catch (e: RuntimeException) {
++                broken = true
++                e.printStackTrace()
++            }
++        }
++        return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
++    }
++
++    override fun getCurrentPositionUs(sourceEnded: Boolean): Long =
++        super.getCurrentPositionUs(sourceEnded).also(tap::position)
++
++    override fun play() {
++        super.play()
++        tap.playing(true)
++    }
++
++    override fun pause() {
++        super.pause()
++        tap.playing(false)
++    }
++
++    override fun handleDiscontinuity() {
++        super.handleDiscontinuity()
++        tap.discontinuity()
++    }
++
++    override fun flush() {
++        super.flush()
++        tap.flushed()
++    }
++
++    override fun reset() {
++        super.reset()
++        tap.flushed()
++        tap.playing(false)
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicLevels.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicLevels.kt
+new file mode 100644
+index 0000000..058c7d7
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicLevels.kt
+@@ -0,0 +1,637 @@
++/*
++ * Copyright (C) 2026 InterTune
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.playback
++
++import java.nio.ByteBuffer
++import kotlin.math.PI
++import kotlin.math.exp
++import kotlin.math.ln
++import kotlin.math.max
++import kotlin.math.min
++import kotlin.math.sqrt
++
++/**
++ * How loud the music is, moment by moment, in three ranges: bass, the middle and the top. It is
++ * what the player's living background moves to.
++ *
++ * Each value runs from 0 to 1, where 1 is as loud as that range has been lately in this song. They
++ * are measured against the song itself and not against full scale, so a quiet recording moves the
++ * picture as much as a loud one, and turning the volume down does not flatten it (the samples are
++ * read before the volume is applied).
++ *
++ * With them goes a fourth value, how much is going on ([MusicLevels.PRESENCE]): "lately" is a few
++ * seconds, so a quiet passage becomes its own yardstick and by its levels alone moves the picture
++ * as much as the loudest part of the song. The fourth value says how the passage compares with
++ * the song at full tilt, and whoever draws takes that much of the levels.
++ *
++ * And three more say where the song is in its shape: building up, dropping, or driven on by a
++ * drop ([MusicLevels.TENSION], [MusicLevels.DROP], [MusicLevels.DRIVE]). The levels alone know
++ * nothing of that: bar for bar the part after the drop is no louder than the part before the
++ * breakdown, and it is the part the song was made for.
++ *
++ * Nothing here knows about Android or the player: [LevelAnalyser] turns samples into levels,
++ * [LevelTimeline] keeps a few seconds of them by time. The samples reach the output a good
++ * fraction of a second after they are measured, so a level must be looked up by the time that is
++ * being heard, never taken as it arrives.
++ */
++object MusicLevels {
++    const val BASS = 0
++    const val MID = 1
++    const val HIGH = 2
++    const val BANDS = 3
++
++    /** After the three ranges: how much is going on, 0 to 1 ([presence]). */
++    const val PRESENCE = 3
++
++    /**
++     * After that, where the song is in its shape, each 0 to 1 ([LevelAnalyser] finds them).
++     * [TENSION]: a build-up, more of it the longer it has gone on. [DROP]: the moment the bass
++     * comes back after one, as strong as the build-up was long, and gone again well within a
++     * second. [DRIVE]: the part that follows a drop, for as long as it stays loud and keeps its bass.
++     */
++    const val TENSION = 4
++    const val DROP = 5
++    const val DRIVE = 6
++
++    /** How many values a frame is: the three ranges, [PRESENCE], [TENSION], [DROP] and [DRIVE]. */
++    const val VALUES = 7
++
++    /** Where the bass ends and where the top begins, in Hz. */
++    const val BASS_TOP_HZ = 140.0
++    const val HIGH_BOTTOM_HZ = 2500.0
++
++    /** One level every this many seconds. Long enough to hold a whole cycle of a 50 Hz bass note. */
++    const val FRAME_SECONDS = 0.02
++
++    /** How long the loudest moment stays the yardstick before a quieter passage becomes it, in seconds. */
++    const val YARDSTICK_SECONDS = 8.0
++
++    /**
++     * Below this a range counts as silent and is never stretched up to 1: about -50 dB of full
++     * scale. Without it the hiss before a song starts would be the loudest thing heard so far.
++     */
++    const val SILENCE = 0.003f
++
++    /**
++     * No range is measured against less than this share of the loudest range's yardstick (-18 dB).
++     * A song with almost nothing at the top should show almost nothing there, not its tape hiss
++     * at full swing.
++     */
++    const val LEAST_SHARE = 0.125f
++
++    /**
++     * How long the loudness of this moment is held, and how long the song's loudest stays what
++     * "loud" means, in seconds. The first is short enough that a passage is known to be quiet a
++     * second or two in and long enough to bridge the gaps between drum hits; the second is long
++     * enough to outlast a breakdown, and short enough that a quiet song after a loud one is its
++     * own measure within a minute or two.
++     */
++    const val NOW_SECONDS = 1.2
++    const val SONG_SECONDS = 40.0
++
++    /**
++     * A passage this loud against the song's loudest, as amplitude, has hardly anything going on;
++     * from [FULLY] up everything is. Hardly anything is still [LEAST_PRESENCE]: while there is
++     * sound the picture is never quite still.
++     */
++    const val HARDLY = 0.15f
++    const val FULLY = 0.65f
++    const val LEAST_PRESENCE = 0.1f
++
++    /**
++     * How much is going on, 0 to 1, when the passage is as loud as [now] and the song gets as
++     * loud as [song]. It was the levels alone that moved the picture, and they are measured
++     * against the last few seconds: a lone voice in a quiet passage flashed as hard as the drop.
++     */
++    fun presence(now: Float, song: Float): Float {
++        if (song <= 0f || now <= 0f) return 0f
++        val t = ((now / song - HARDLY) / (FULLY - HARDLY)).coerceIn(0f, 1f)
++        return LEAST_PRESENCE + (1f - LEAST_PRESENCE) * t * t * (3f - 2f * t)
++    }
++
++    /**
++     * Bass counts as there in a frame when it is this much of everything in that frame, as
++     * amplitude, and not under [BASS_FAINT] of the loudest the passage has been. It is set
++     * against the frame and not against the song, so that a song fading out keeps its bass to the
++     * end: there the kick gets quieter along with everything else, which is not the bass leaving.
++     */
++    const val BASS_THERE = 0.4f
++    const val BASS_FAINT = 0.1f
++
++    /**
++     * The longest two kicks are apart in a beat that is simply slow, in seconds. Only music that
++     * has gone without bass for longer is a build-up, and only bass that comes back after longer
++     * can be a drop. A second of bass closes [BASS_CLOSES] seconds of gap, which is all of it for
++     * a kick and little for one stray frame with something low in it: intros are full of those,
++     * and each used to start the count again. The gap is not counted beyond [GAP_MOST_SECONDS].
++     */
++    const val KICK_GAP_SECONDS = 2f
++    const val BASS_CLOSES = 25f
++    const val GAP_MOST_SECONDS = 3f
++
++    /** Tension is full when the bass has been away this much longer than that, in seconds. */
++    const val TENSION_SECONDS = 8f
++
++    /**
++     * A second of bass takes back this many seconds of tension: a single note in a breakdown
++     * takes some of it, and a beat that comes back without being a drop all of it within a few bars.
++     */
++    const val BASS_UNDOES = 16f
++
++    /**
++     * Music that has gone this long without bass is not building up to anything, it is music
++     * without bass: from here the tension lets go, and by [GIVEN_UP_SECONDS] it is gone. A drop
++     * that comes after all is as strong as ever.
++     */
++    const val GIVING_UP_SECONDS = 30f
++    const val GIVEN_UP_SECONDS = 45f
++
++    /** Silence this long ends whatever was building, in seconds. Shorter is the beat of silence before a drop, and spends nothing. */
++    const val SILENCE_ENDS_SECONDS = 3f
++
++    /**
++     * A drop is the bass back at this much of the loudest the song's bass has been, with all of
++     * the sound together at this much of the loudest the song has been, and above what is
++     * remembered of the bass by as much as [KICK_GAP_SECONDS] without any make it
++     * ([BASS_MEMORY_SECONDS]). From its first frame of bass it has this long to get there, in
++     * seconds: a frame rarely begins where a kick does.
++     *
++     * The loudest the song has been is often its intro, a melody alone and at full blast, and
++     * the drums that come in under it are less, frame for frame. So [DROP_LOUD] is well short of
++     * all of it: at 0.7 such a song never dropped. It is the bass standing above what was there
++     * that tells a drop, and the loudness only keeps out what is plainly not one.
++     */
++    const val DROP_BASS = 0.5f
++    const val DROP_LOUD = 0.4f
++    const val DROP_WITHIN_SECONDS = 0.12f
++
++    /**
++     * A drop has to be rare. Bass that comes back is one only where bass as strong as this song's
++     * ([DROP_BASS]) had been there for [STAYED_SECONDS] before it left, which is a part of the
++     * song and then a break, or where it stands this far above the loudest bass the song has had
++     * ([NEW_HEIGHT]), which is the bass arriving. Without that every note of a bass that comes
++     * once a bar was a drop, and a slow song got a burst and a flash on each: more than two
++     * seconds from one note to the next is all the rest asks for.
++     */
++    const val STAYED_SECONDS = 4f
++    const val NEW_HEIGHT = 1.65f
++
++    /** How strong a drop is that had no tension to spend, where one with all of it is 1. */
++    const val LEAST_DROP = 0.35f
++
++    /**
++     * A drop is as strong as the bass was long away, and that is told two ways, whichever says
++     * longer: by the tension, and by how far the drop's bass towers over what is remembered of
++     * the bass, which fades over this many seconds. The second does not mind the murmur of bass
++     * that many a build-up keeps, where the first is held down by it. And where that murmur has
++     * left no tension at all, bass may still be a drop when it towers as it would after
++     * [BASS_TOWERS_SECONDS] with none: four and a half times what is remembered, with these two.
++     */
++    const val BASS_MEMORY_SECONDS = 4f
++    const val BASS_TOWERS_SECONDS = 6f
++
++    /** [DROP] is down to a third after this long, in seconds: whoever draws sees it, however rarely it looks. */
++    const val DROP_FADES_SECONDS = 0.15
++
++    /**
++     * The drive holds while the passage is this loud against the loudest the song has been and
++     * the bass is never away for more than [KICK_GAP_SECONDS]. When either fails it goes down
++     * over [DRIVE_FALL_SECONDS], and should the beat be back before it is gone, up again over
++     * [DRIVE_RISE_SECONDS].
++     *
++     * It does not last for ever either. A song that never lets up after its intro would be
++     * driven to its end, and that is no longer the part after the drop, it is how the song is:
++     * [DRIVE_LASTS_SECONDS] after its drop a drive begins to wear off, and
++     * [DRIVE_WEARS_SECONDS] later it has.
++     */
++    const val DRIVE_LOUD = 0.3f
++    const val DRIVE_FALL_SECONDS = 1.5f
++    const val DRIVE_RISE_SECONDS = 0.2f
++    const val DRIVE_LASTS_SECONDS = 60f
++    const val DRIVE_WEARS_SECONDS = 30f
++
++    /** For how long the loudest the song and its bass have been stay what a drop is told by, in seconds. Longer than a breakdown lasts. */
++    const val SHAPE_SECONDS = 90.0
++}
++
++/**
++ * Turns PCM samples into [MusicLevels], one frame every [MusicLevels.FRAME_SECONDS].
++ *
++ * Three ranges from six one-pole filters rather than a Fourier transform: about twenty additions
++ * and multiplications a sample, which is nothing next to decoding the audio. Every edge is two
++ * poles steep, because the levels are measured against themselves: whatever leaks from one range
++ * into an emptier one is stretched up with it, and with one pole a bass note alone came out three
++ * quarters as loud in the middle range as in its own.
++ *
++ * It also finds the build-up and the drop as they go by ([shape]). In the music that has them the
++ * bass leaves for the build-up, seconds of it while the rest carries on, and the drop is the bass
++ * coming back at once with everything at the loudest the song gets. That is all it goes by: how
++ * long the bass has been away, and how it comes back. It has to know a drop by its first kick,
++ * since the picture can only land on a beat it knows of before the beat is heard, so it cannot
++ * wait and see whether the bass stays: a single note as loud as the drop would be, after seconds
++ * without bass, is taken for one, and the drive that follows a drop is what lets go again when
++ * the note turns out to have been alone. A build-up that keeps its kick is not found at all.
++ *
++ * Not thread safe: one thread feeds it.
++ */
++class LevelAnalyser(private val sampleRate: Int, private val onFrame: (endsAtSample: Long, levels: FloatArray) -> Unit) {
++
++    private val frameLength = max(1, (sampleRate * MusicLevels.FRAME_SECONDS).toInt())
++    private val bassStep = step(MusicLevels.BASS_TOP_HZ)
++    private val highStep = step(MusicLevels.HIGH_BOTTOM_HZ)
++    private val yardstickKeeps = exp(-MusicLevels.FRAME_SECONDS / MusicLevels.YARDSTICK_SECONDS).toFloat()
++
++    // filter memories, in the order sample() runs them
++    private var bass1 = 0f
++    private var bass2 = 0f
++    private var underRest = 0f
++    private var mid1 = 0f
++    private var mid2 = 0f
++    private var underHigh = 0f
++
++    private val sum = DoubleArray(MusicLevels.BANDS)
++    private var inFrame = 0
++    private var samplesSeen = 0L
++
++    /** The loudest each range has been lately, as an amplitude. Starts at an ordinary song's, so the first note is not the loudest ever. */
++    private val yardstick = floatArrayOf(0.18f, 0.12f, 0.05f)
++    private val levels = FloatArray(MusicLevels.VALUES)
++
++    private val nowKeeps = exp(-MusicLevels.FRAME_SECONDS / MusicLevels.NOW_SECONDS).toFloat()
++    private val songKeeps = exp(-MusicLevels.FRAME_SECONDS / MusicLevels.SONG_SECONDS).toFloat()
++
++    /** How loud it is now, all ranges together, and the loudest the song has been: for [MusicLevels.presence]. The song starts as an ordinary one. */
++    private var now = 0f
++    private var song = sqrt(0.18f * 0.18f + 0.12f * 0.12f + 0.05f * 0.05f)
++
++    private val frameSeconds = MusicLevels.FRAME_SECONDS.toFloat()
++    private val shapeKeeps = exp(-MusicLevels.FRAME_SECONDS / MusicLevels.SHAPE_SECONDS).toFloat()
++    private val dropKeeps = exp(-MusicLevels.FRAME_SECONDS / MusicLevels.DROP_FADES_SECONDS).toFloat()
++    private val latelyKeeps = exp(-MusicLevels.FRAME_SECONDS / MusicLevels.BASS_MEMORY_SECONDS).toFloat()
++    private val towers = exp(MusicLevels.BASS_TOWERS_SECONDS / MusicLevels.BASS_MEMORY_SECONDS)
++    private val returns = exp(MusicLevels.KICK_GAP_SECONDS / MusicLevels.BASS_MEMORY_SECONDS)
++
++    /**
++     * The loudest this song has been, all ranges together, and the loudest its bass has been: what
++     * a drop is told by. Unlike [song] they start from nothing and not from an ordinary song's, so
++     * that a quiet recording drops like a loud one from its first bar.
++     */
++    private var top = 0f
++    private var bassTop = 0f
++
++    /** Seconds of music with no bass in it that no bass has closed since, and seconds of silence in a row. */
++    private var gap = 0f
++    private var silent = 0f
++
++    /** Seconds of music since all this started over, or since the last drop: nothing can have been away for longer. */
++    private var heard = 0f
++
++    /**
++     * What is remembered of the bass ([MusicLevels.BASS_MEMORY_SECONDS]), as it was before the
++     * last few frames, which wait in [onset]: a drop's own first frames must not be what its bass
++     * is measured against.
++     */
++    private var lately = 0f
++
++    /** The loudest the song's bass has been, as it was before those same few frames: what a new height is a height above. */
++    private var height = 0f
++
++    /**
++     * Seconds of music since bass that is strong for this song, how long such bass has been
++     * around since it last came back, and the longest it had been around when it last left.
++     */
++    private var strongGap = MusicLevels.GAP_MOST_SECONDS
++    private var stay = 0f
++    private var stayed = 0f
++    private val onset = FloatArray(max(1, Math.round(MusicLevels.DROP_WITHIN_SECONDS / MusicLevels.FRAME_SECONDS).toInt()))
++    private var onsetAt = 0
++
++    /**
++     * Seconds the bass has been away for longer than the gap between two kicks, which is what the
++     * tension is made of and a returning bass takes back; and the same seconds counted until the
++     * bass is back for good, by which the tension gives up.
++     */
++    private var away = 0f
++    private var spent = 0f
++
++    /** Seconds the bass that has just come back still has to prove a drop, and how much tension there was when it came. */
++    private var proving = 0f
++    private var built = 0f
++
++    private var drop = 0f
++    private var drive = 0f
++    private var driveTo = 0f
++
++    /** Seconds since the drop the drive is from. */
++    private var drivenFor = 0f
++
++    /** How loud each range was in the frame just finished, against full scale. For whoever wants the measure before it is set against the song. */
++    val raw = FloatArray(MusicLevels.BANDS)
++
++    private fun step(cutoffHz: Double) = (1.0 - exp(-2.0 * PI * cutoffHz / sampleRate)).toFloat()
++
++    /** One sample, all channels already mixed into one, full scale being -1 to 1. */
++    fun sample(x: Float) {
++        // bass: what two low-pass stages let through
++        bass1 += bassStep * (x - bass1)
++        bass2 += bassStep * (bass1 - bass2)
++        // the rest: the same two stages taken away
++        val rest1 = x - bass1
++        underRest += bassStep * (rest1 - underRest)
++        val rest = rest1 - underRest
++        // the middle is the low part of the rest, the top is what is left of it
++        mid1 += highStep * (rest - mid1)
++        mid2 += highStep * (mid1 - mid2)
++        val high1 = rest - mid1
++        underHigh += highStep * (high1 - underHigh)
++        val high = high1 - underHigh
++
++        sum[MusicLevels.BASS] += (bass2 * bass2).toDouble()
++        sum[MusicLevels.MID] += (mid2 * mid2).toDouble()
++        sum[MusicLevels.HIGH] += (high * high).toDouble()
++        samplesSeen++
++        if (++inFrame == frameLength) finishFrame()
++    }
++
++    private fun finishFrame() {
++        var loudest = 0f
++        // A float stream can carry a sample that is not a number, and a filter that has taken one
++        // in gives nothing else ever after. Such a frame counts as silence and the filters start over.
++        if (sum.any { it.isNaN() || it.isInfinite() }) {
++            jump()
++            raw.fill(0f)
++            levels.fill(0f)
++            onFrame(samplesSeen, levels)
++            return
++        }
++        var power = 0.0
++        for (band in 0 until MusicLevels.BANDS) {
++            power += sum[band] / frameLength
++            raw[band] = sqrt(sum[band] / frameLength).toFloat()
++            sum[band] = 0.0
++            yardstick[band] = max(yardstick[band] * yardstickKeeps, raw[band])
++            loudest = max(loudest, yardstick[band])
++        }
++        val all = sqrt(power).toFloat()
++        now = max(now * nowKeeps, all)
++        song = max(song * songKeeps, all)
++        levels[MusicLevels.PRESENCE] = if (now <= MusicLevels.SILENCE) 0f else MusicLevels.presence(now, song)
++        shape(raw[MusicLevels.BASS], all)
++        // A range with next to nothing in it is not stretched to full: its yardstick is never
++        // taken to be less than a small part of the loudest range's.
++        val least = max(MusicLevels.SILENCE, loudest * MusicLevels.LEAST_SHARE)
++        for (band in 0 until MusicLevels.BANDS) {
++            levels[band] = if (raw[band] <= MusicLevels.SILENCE) 0f else (raw[band] / max(yardstick[band], least)).coerceIn(0f, 1f)
++        }
++        inFrame = 0
++        onFrame(samplesSeen, levels)
++    }
++
++    /**
++     * Where the song is in its shape after a frame with this much [bass] in it and this much of
++     * everything ([all]), both against full scale: a few comparisons, and everything in them is
++     * one loudness against another, so a quiet recording gives what a loud one does.
++     *
++     * While there is music and no bass, [gap] runs. Once it has run for longer than two kicks are
++     * ever apart, [away] runs with it, and that is the tension. Bass that comes while there is
++     * tension has a few frames to prove a drop: hard for this song's bass and well above what
++     * bass there was, with everything loud for this song, and either back after it had stayed
++     * or higher than the song's bass has been. A drop is as strong as the bass was long away, and starts the drive,
++     * which holds for as long as the passage stays loud and keeps its bass. Bass that proves
++     * nothing takes the tension back bit by bit.
++     */
++    private fun shape(bass: Float, all: Float) {
++        top = max(top * shapeKeeps, all)
++        bassTop = max(bassTop * shapeKeeps, bass)
++        drop *= dropKeeps
++        if (drop < 0.01f) drop = 0f
++        if (all <= MusicLevels.SILENCE) {
++            silent += frameSeconds
++            if (silent > MusicLevels.SILENCE_ENDS_SECONDS) startOver()
++        } else {
++            silent = 0f
++            if (heard < MusicLevels.SHAPE_SECONDS) heard += frameSeconds
++            lately = max(lately * latelyKeeps, onset[onsetAt])
++            height = max(height * shapeKeeps, onset[onsetAt])
++            onset[onsetAt] = bass
++            onsetAt = (onsetAt + 1) % onset.size
++            if (bass >= MusicLevels.BASS_THERE * all && bass >= MusicLevels.BASS_FAINT * now) {
++                // Bass, and tension left that it has not taken back yet: it may be the drop. Not
++                // only the first bass after the gap, which is as often a fill or a note picked up
++                // half a beat before. Or bass far above any there has been for a while.
++                val towering = drop == 0f && heard >= MusicLevels.BASS_TOWERS_SECONDS && bass >= towers * lately
++                if (away > 0f || towering) {
++                    if (proving <= 0f) built = away / MusicLevels.TENSION_SECONDS
++                    proving = MusicLevels.DROP_WITHIN_SECONDS
++                }
++                gap = max(0f, gap - MusicLevels.BASS_CLOSES * frameSeconds)
++                away = max(0f, away - MusicLevels.BASS_UNDOES * frameSeconds)
++                if (away == 0f) spent = 0f
++            } else {
++                gap = min(MusicLevels.GAP_MOST_SECONDS, gap + frameSeconds)
++                if (gap > MusicLevels.KICK_GAP_SECONDS) {
++                    away = min(MusicLevels.TENSION_SECONDS, away + frameSeconds)
++                    spent += frameSeconds
++                }
++            }
++            // How long strong bass has been around. A kick every beat stays; one note a bar comes
++            // and is gone again, however often.
++            if (bass >= MusicLevels.DROP_BASS * bassTop) strongGap = 0f else if (strongGap < MusicLevels.GAP_MOST_SECONDS) strongGap += frameSeconds
++            if (strongGap < MusicLevels.KICK_GAP_SECONDS) {
++                stay += frameSeconds
++            } else if (stay > 0f) {
++                stayed = max(stayed, stay - MusicLevels.KICK_GAP_SECONDS)
++                stay = 0f
++            }
++            if (proving > 0f) {
++                proving -= frameSeconds
++                val hard = bass >= MusicLevels.DROP_BASS * bassTop && all >= MusicLevels.DROP_LOUD * top && bass >= returns * lately
++                if (hard && (max(stayed, stay) >= MusicLevels.STAYED_SECONDS || bass >= MusicLevels.NEW_HEIGHT * height)) dropped(bass)
++            }
++        }
++        if (driveTo > 0f) {
++            drivenFor += frameSeconds
++            val worn = ((drivenFor - MusicLevels.DRIVE_LASTS_SECONDS) / MusicLevels.DRIVE_WEARS_SECONDS).coerceIn(0f, 1f)
++            if (worn < 1f && gap < MusicLevels.KICK_GAP_SECONDS && now >= MusicLevels.DRIVE_LOUD * top) {
++                drive = min(driveTo * (1f - worn), drive + frameSeconds / MusicLevels.DRIVE_RISE_SECONDS)
++            } else {
++                drive = max(0f, drive - frameSeconds / MusicLevels.DRIVE_FALL_SECONDS)
++                if (drive == 0f) driveTo = 0f
++            }
++        }
++        val givenUp = ((spent - MusicLevels.GIVING_UP_SECONDS) / (MusicLevels.GIVEN_UP_SECONDS - MusicLevels.GIVING_UP_SECONDS)).coerceIn(0f, 1f)
++        levels[MusicLevels.TENSION] = away / MusicLevels.TENSION_SECONDS * (1f - givenUp)
++        levels[MusicLevels.DROP] = drop
++        levels[MusicLevels.DRIVE] = drive
++    }
++
++    /** This frame is a drop, with this much [bass] in it. */
++    private fun dropped(bass: Float) {
++        // how long the bass has been away going by its level: what is remembered of it has faded
++        // for that long to be this far under it
++        val byLevel = if (lately > 0f) MusicLevels.BASS_MEMORY_SECONDS * ln(bass / lately) else heard
++        val waited = ((min(heard, byLevel) - MusicLevels.KICK_GAP_SECONDS) / MusicLevels.TENSION_SECONDS).coerceIn(0f, 1f)
++        drop = MusicLevels.LEAST_DROP + (1f - MusicLevels.LEAST_DROP) * max(built, waited)
++        // A smaller drop inside a part a bigger one drives is a burst and leaves the drive as it
++        // is, with part of its time given back: all of it would keep a song with a bar's break
++        // every so often driven for good.
++        if (drop >= driveTo) {
++            driveTo = drop
++            drivenFor = 0f
++        } else {
++            drivenFor *= 1f - drop / driveTo
++        }
++        drive = max(drive, drop)
++        proving = 0f
++        gap = 0f
++        away = 0f
++        spent = 0f
++        heard = 0f
++        stayed = 0f
++    }
++
++    /** Nothing building, nothing dropped, and no song to tell a drop by: as at the first sample. */
++    private fun startOver() {
++        top = 0f
++        bassTop = 0f
++        gap = 0f
++        silent = 0f
++        heard = 0f
++        lately = 0f
++        height = 0f
++        strongGap = MusicLevels.GAP_MOST_SECONDS
++        stay = 0f
++        stayed = 0f
++        onset.fill(0f)
++        drivenFor = 0f
++        away = 0f
++        spent = 0f
++        proving = 0f
++        built = 0f
++        drop = 0f
++        drive = 0f
++        driveTo = 0f
++    }
++
++    /**
++     * Music went by unmeasured for [seconds], because nobody was looking, or what comes now is
++     * other music. What is remembered is aged as that much silence would have aged it. The
++     * yardsticks only ever came down while frames were measured: opened on a quiet song hours
++     * after a loud one, the picture sat nearly still for a minute, measuring the one against the
++     * other.
++     *
++     * In the [sameSong] the loudest the song has been is left as it is. Aged with the rest, a
++     * quiet part come back to a minute later counted as all there until the song got loud again.
++     *
++     * The song's shape is not touched here: it starts over on a [jump]. A pause is neither, the
++     * audio goes on where it stopped, and it keeps everything however long it lasts.
++     */
++    fun aged(seconds: Double, sameSong: Boolean = false) {
++        if (!(seconds > 0.0)) return
++        val kept = exp(-seconds / MusicLevels.YARDSTICK_SECONDS).toFloat()
++        for (band in 0 until MusicLevels.BANDS) yardstick[band] *= kept
++        now *= exp(-seconds / MusicLevels.NOW_SECONDS).toFloat()
++        if (!sameSong) song *= exp(-seconds / MusicLevels.SONG_SECONDS).toFloat()
++    }
++
++    /** 16 bit samples from [buffer]'s position to its limit, [channels] interleaved. The buffer is left as it was. */
++    fun pcm16(buffer: ByteBuffer, channels: Int) {
++        val from = buffer.position()
++        val frames = (buffer.limit() - from) / (2 * channels)
++        var at = from
++        repeat(frames) {
++            var mixed = 0
++            repeat(channels) {
++                mixed += buffer.getShort(at)
++                at += 2
++            }
++            sample(mixed / (32768f * channels))
++        }
++    }
++
++    /** The same for 32 bit float samples. */
++    fun pcmFloat(buffer: ByteBuffer, channels: Int) {
++        val from = buffer.position()
++        val frames = (buffer.limit() - from) / (4 * channels)
++        var at = from
++        repeat(frames) {
++            var mixed = 0f
++            repeat(channels) {
++                mixed += buffer.getFloat(at)
++                at += 4
++            }
++            sample(mixed / channels)
++        }
++    }
++
++    /**
++     * The audio jumped (a seek, another song): what is left of a half measured frame is dropped,
++     * and whatever was building or driven is over. The yardstick stays.
++     */
++    fun jump() {
++        startOver()
++        sum.fill(0.0)
++        inFrame = 0
++        bass1 = 0f
++        bass2 = 0f
++        underRest = 0f
++        mid1 = 0f
++        mid2 = 0f
++        underHigh = 0f
++    }
++}
++
++/**
++ * A few seconds of levels by the time they are heard, written by the thread that plays and read by
++ * the one that draws.
++ *
++ * Times are the player's own (microseconds, as the audio output counts them) and only ever grow
++ * between two [clear]s.
++ */
++class LevelTimeline(private val capacity: Int = 512) {
++    private val times = LongArray(capacity)
++    private val values = FloatArray(capacity * MusicLevels.VALUES)
++    private var next = 0
++    private var held = 0
++
++    @Synchronized
++    fun add(timeUs: Long, levels: FloatArray) {
++        times[next] = timeUs
++        // levels with no word on how much is going on count as all there, and with none on the
++        // song's shape as building nothing
++        val at = next * MusicLevels.VALUES
++        values.fill(0f, at, at + MusicLevels.VALUES)
++        values[at + MusicLevels.PRESENCE] = 1f
++        System.arraycopy(levels, 0, values, at, minOf(levels.size, MusicLevels.VALUES))
++        next = (next + 1) % capacity
++        if (held < capacity) held++
++    }
++
++    @Synchronized
++    fun clear() {
++        next = 0
++        held = 0
++    }
++
++    /**
++     * The levels being heard at [timeUs], into [into]: the three ranges, and as many of the
++     * values after them as [into] has room for ([MusicLevels.VALUES] for all). False when nothing is known for that moment:
++     * nothing measured yet, or the newest level before it is more than [staleUs] old.
++     */
++    @Synchronized
++    fun read(timeUs: Long, into: FloatArray, staleUs: Long = 250_000): Boolean {
++        for (back in 1..held) {
++            val at = (next - back + capacity) % capacity
++            if (times[at] <= timeUs) {
++                if (timeUs - times[at] > staleUs) return false
++                System.arraycopy(values, at * MusicLevels.VALUES, into, 0, minOf(into.size, MusicLevels.VALUES))
++                return true
++            }
++        }
++        return false
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 8beb50d..b253073 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -293,6 +293,9 @@ class MusicService : MediaLibraryService(),
+     // by the time the ExoPlayer.Builder in onCreate() runs.
+     val equalizerAudioProcessor = EqualizerAudioProcessor()
+ 
++    /** Measures what is played for the Simple reactive background; free unless that is on screen. */
++    val levelTap = LevelTap()
++
+     // Player components
+     @Inject
+     lateinit var syncUtils: SyncUtils
+@@ -1655,6 +1658,7 @@ class MusicService : MediaLibraryService(),
+                             )
+                         )
+                         .build()
++                        .let { LevelTapAudioSink(it, levelTap) }
+                 }
+             }
+                 .setEnableDecoderFallback(true)
+@@ -1684,6 +1688,7 @@ class MusicService : MediaLibraryService(),
+                             )
+                         )
+                         .build()
++                        .let { LevelTapAudioSink(it, levelTap) }
+                 }
+             }
+         }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LivingBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LivingBackground.kt
+new file mode 100644
+index 0000000..539cb56
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LivingBackground.kt
+@@ -0,0 +1,418 @@
++/*
++ * Copyright (C) 2026 InterTune
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.player
++
++import android.content.Context
++import android.graphics.Bitmap
++import android.graphics.Paint
++import android.graphics.RectF
++import android.os.Build
++import androidx.compose.foundation.Canvas
++import androidx.compose.foundation.layout.BoxWithConstraints
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.MutableState
++import androidx.compose.runtime.derivedStateOf
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableIntStateOf
++import androidx.compose.runtime.mutableLongStateOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
++import androidx.compose.runtime.setValue
++import androidx.compose.runtime.withFrameNanos
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.geometry.Rect
++import androidx.compose.ui.graphics.BlurEffect
++import androidx.compose.ui.graphics.CompositingStrategy
++import androidx.compose.ui.graphics.TileMode
++import androidx.compose.ui.graphics.TransformOrigin
++import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
++import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.ui.graphics.nativeCanvas
++import androidx.compose.ui.layout.layout
++import androidx.compose.ui.layout.onGloballyPositioned
++import androidx.compose.ui.layout.positionInRoot
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.unit.Constraints
++import androidx.core.graphics.createBitmap
++import androidx.lifecycle.Lifecycle
++import androidx.lifecycle.compose.LocalLifecycleOwner
++import androidx.lifecycle.repeatOnLifecycle
++import coil3.imageLoader
++import coil3.request.ImageRequest
++import coil3.request.allowHardware
++import coil3.toBitmap
++import com.dd3boh.outertune.constants.LivingColours
++import com.dd3boh.outertune.extensions.isPowerSaver
++import com.dd3boh.outertune.playback.LevelTap
++import com.dd3boh.outertune.playback.MusicLevels
++import com.dd3boh.outertune.utils.coilCoroutine
++import kotlinx.coroutines.awaitCancellation
++import kotlinx.coroutines.withContext
++import kotlin.math.max
++import kotlin.math.min
++
++/**
++ * The player's living background: the cover reduced to patches of colour that breathe with the
++ * music. LivingField.kt says what is drawn where; this draws it.
++ *
++ * It is drawn an eighth of the size and stretched, with a slight blur where the system has one.
++ * There is nothing in the picture finer than a patch, so nothing is lost, and some twenty soft
++ * discs over a whole phone screen at every frame would be several times the screen in fill for no
++ * gain.
++ *
++ * Frames are asked for only while there is something to move: the player open, the app in view,
++ * and music playing or the picture still settling after it stopped. A paused player is a still
++ * picture and costs what the plain blurred cover costs. With battery saver on, or animations
++ * off (Animations), it does not move at all.
++ *
++ * While it moves it is redrawn thirty times a second at most, whatever the screen can do
++ * ([RedrawPace]). What a redraw costs is not this picture, which is small: it is the glass panels
++ * over it, which look through it and are redrawn with it, and the rest of the window. On the
++ * screen's frames between two redraws nothing of it is stepped and nothing is drawn.
++ *
++ * The cover takes up most of the player and hides what is behind it, so most of what answers the
++ * music is an aura on the cover's own edge ([PlayerCoverPlace] says where that is), half of it
++ * behind the cover and half spilling out round it.
++ *
++ * @param cover what Coil is given for the cover; the small one the blurred background uses
++ * @param tap where the levels come from, or null to drift without them
++ * @param onScreen false while the player is closed to its mini player
++ * @param strength how strongly it answers the music, 0 to 1: the setting (LivingField.reach)
++ * @param smoothing how softly, 0 to 1: the other setting (LivingField.ease)
++ * @param colours what it is coloured from: the cover's main colours, or the cover itself
++ * @param alpha how much of the picture shows over what is behind it, 0 to 1. Asked for here and
++ *   not with a modifier's alpha: that one has the stretched picture drawn into a buffer the size
++ *   of the screen at every redraw and then fades the buffer. This fades the small picture as it
++ *   is stretched, which comes to the same on screen.
++ * @param covered true while it is on screen and none of it can be seen, because something that
++ *   lets nothing through lies over all of it: the player's queue, open. It asks for no frames
++ *   then, as when it is off screen, and goes on listening, so that it comes back knowing where
++ *   the song is in its shape.
++ * @param coverPlace where the cover it stands behind is, in the root's measure, or null for none.
++ *   The player's own by default; the sample in Settings has a small cover of its own.
++ */
++@Composable
++fun LivingBackground(
++    cover: Any?,
++    tap: LevelTap?,
++    playing: Boolean,
++    onScreen: Boolean,
++    strength: Float,
++    smoothing: Float,
++    colours: LivingColours,
++    modifier: Modifier = Modifier,
++    alpha: Float = 1f,
++    covered: Boolean = false,
++    coverPlace: () -> Rect? = { PlayerCoverPlace.bounds },
++) {
++    // The grid is made for the room the picture is given, not for the window: in the player the
++    // two are the same, in the Settings sample the picture is a strip.
++    BoxWithConstraints(modifier) {
++        LivingPicture(cover, tap, playing, onScreen, covered, strength, smoothing, colours, alpha, coverPlace, constraints.maxWidth, constraints.maxHeight)
++    }
++}
++
++@Composable
++private fun LivingPicture(
++    cover: Any?,
++    tap: LevelTap?,
++    playing: Boolean,
++    onScreen: Boolean,
++    covered: Boolean,
++    strength: Float,
++    smoothing: Float,
++    colours: LivingColours,
++    alpha: Float,
++    coverPlace: () -> Rect?,
++    wide: Int,
++    tall: Int,
++) {
++    val context = LocalContext.current
++    val lifecycleOwner = LocalLifecycleOwner.current
++    val look = remember { Look() }
++    // Where this picture itself is, and how far it is stretched, to bring the cover's place into
++    // the small picture's own measure.
++    var origin by remember { mutableStateOf(Offset.Zero) }
++    val stretch = remember { mutableStateOf(Offset(1f, 1f)) }
++
++    // Three patches along the short side and as many along the long side as keeps them round, or
++    // five where the ranges lie in ribbons, whose edges are curves and want more to be drawn with.
++    // A picture that changes shape, or the way it is coloured, starts over with the new grid.
++    val upright = tall >= wide
++    val ribbons = colours == LivingColours.MAIN
++    val across = if (ribbons) LivingField.FLOW_ACROSS else LivingField.ACROSS
++    val along = LivingField.along(
++        long = max(wide, tall).toFloat(), short = min(wide, tall).toFloat(),
++        across = across, most = if (ribbons) LivingField.FLOW_MOST_ALONG else LivingField.MOST_ALONG,
++    )
++    val motion = remember(upright, along, across) {
++        if (upright) LivingMotion(across, along) else LivingMotion(along, across)
++    }
++
++    // Whether there is a cover, and not where it is. Its place changes on every frame while the
++    // player's sheet or the strip of covers moves, and read here it had the whole picture
++    // composed again on each of those frames. Where the cover is, the drawing asks.
++    val place by rememberUpdatedState(coverPlace)
++    val coverThere by remember { derivedStateOf { place() != null } }
++    motion.strength = strength
++    motion.smoothing = smoothing
++    motion.coverThere = coverThere
++    motion.separate = ribbons
++
++    // Saver, or animations turned off: nothing moves, and nothing is measured for it.
++    val still = wantsStillness(context)
++
++    // Read by the drawing alone, so a new frame redraws the canvas and recomposes nothing.
++    var frame by remember { mutableLongStateOf(0L) }
++    // Counts the covers, so a cover that changes while nothing moves starts the frames again.
++    var covers by remember { mutableIntStateOf(0) }
++
++    LaunchedEffect(cover, motion, colours) {
++        // the patches, or for the main colours those three, the bass's first
++        val (patches, mains) = withContext(coilCoroutine) {
++            val bitmap = context.imageLoader.execute(
++                ImageRequest.Builder(context)
++                    .data(cover)
++                    .allowHardware(false)
++                    .build()
++            ).image?.toBitmap() ?: return@withContext null
++            val pixels = IntArray(bitmap.width * bitmap.height)
++            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
++            when (colours) {
++                // what is under the ribbons, should they leave anything uncovered, is the bass's
++                LivingColours.MAIN -> LivingField.mainColours(pixels, bitmap.width, bitmap.height).let { three ->
++                    IntArray(motion.count) { three[MusicLevels.BASS] } to three
++                }
++                LivingColours.COVER -> LivingField.patches(pixels, bitmap.width, bitmap.height, motion.columns, motion.rows) to null
++            }
++        } ?: return@LaunchedEffect
++        motion.turnTo(patches, glow = mains?.get(MusicLevels.BASS), mains = mains)
++        covers++
++    }
++
++    // coverThere is a key because the aura comes and goes with the cover, and has to be seen to
++    // do it even while nothing else moves.
++    LaunchedEffect(onScreen, covered, playing, covers, coverThere, motion, lifecycleOwner, still) {
++        // Covered, it is as good as off screen: nobody sees it move, and every frame of it would
++        // still have the window drawn again over it.
++        if (!onScreen || covered) {
++            look.unseen = true
++            return@LaunchedEffect
++        }
++        if (still) {
++            motion.settle()
++            frame++
++            return@LaunchedEffect
++        }
++        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
++            // While nothing was drawn (the player closed to its mini player, the app out of view)
++            // the covers went on arriving and nothing turned into them. It comes back in the
++            // colours of the song that plays, not turning into them from an older one's.
++            if (look.unseen) {
++                look.unseen = false
++                motion.arrive()
++            }
++            try {
++                val levels = FloatArray(MusicLevels.VALUES)
++                var frameAt = 0L
++                // What is heard as each of the picture's steps ends. A step ends a little before
++                // the frame it is taken on, or a hair after, and the tap answers for the present:
++                // so it is asked that much less far ahead, or more. It is never asked backwards,
++                // and a step from further back than the lead, which takes a frame that came very
++                // late, is told what is heard now.
++                val heard = LivingMotion.Heard { at ->
++                    val aheadUs = (motion.lead() * 1_000_000).toLong() + (at - frameAt) / 1000
++                    levels.takeIf { playing && tap?.now(it, aheadUs) == true }
++                }
++                while (playing || !motion.atRest()) {
++                    withFrameNanos { now ->
++                        frameAt = now
++                        // Thirty times a second at most, and on the screen's other frames nothing
++                        // is stepped and nothing drawn: see RedrawPace.
++                        if (motion.frame(now, redraws, playing, heard)) frame = now
++                    }
++                }
++                // At rest, or never moved at all: drawn once more, for the colours that arrived
++                // while nothing was drawn.
++                frame++
++            } finally {
++                if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) look.unseen = true
++            }
++        }
++    }
++
++    // The music is watched for as long as the picture is on screen, playing or not, covered or
++    // not, and not from the effect above, which starts again at every pause, every cover and when
++    // the lyrics come up. Each of those took the last watcher away for a moment, the tap took the
++    // moment for music it had missed, and the song's shape started over: a pause in a build-up
++    // cost the drop, and so would a look at the queue. Nothing is offered to measure while
++    // nothing plays, so watching a pause costs nothing.
++    LaunchedEffect(tap, onScreen, still, lifecycleOwner) {
++        if (tap == null || !onScreen || still) return@LaunchedEffect
++        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
++            tap.watch()
++            try {
++                awaitCancellation()
++            } finally {
++                tap.unwatch()
++            }
++        }
++    }
++
++    Canvas(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }.drawnSmall(stretch, alpha)) {
++        @Suppress("UNUSED_VARIABLE")
++        val redrawnAt = frame
++        // The cover's place, or where it last was while the aura fades out after it.
++        val coverAt = coverPlace()?.also { look.lastCover = it } ?: look.lastCover
++        drawIntoCanvas { canvas ->
++            val native = canvas.nativeCanvas
++            look.discs.field(native, motion, size.width, size.height)
++
++            if (coverAt != null && motion.auraPresence > 0.004f) {
++                val by = stretch.value
++                val left = (coverAt.left - origin.x) / by.x
++                val top = (coverAt.top - origin.y) / by.y
++                val width = coverAt.width / by.x
++                val height = coverAt.height / by.y
++                val side = min(width, height)
++                motion.coverAt(left / size.width, top / size.height, (left + width) / size.width, (top + height) / size.height)
++                for (i in motion.aura.indices) {
++                    val point = motion.aura[i]
++                    val radius = motion.auraRadius(i) * side
++                    look.discs.disc(native, left + point.x * width, top + point.y * height, radius, radius, motion.auraColor(i), motion.auraStrength(i))
++                }
++            }
++        }
++    }
++}
++
++/**
++ * Where the cover of the song that plays is on screen, in the root's measure, or null while there
++ * is none to be seen (the lyrics are up, the song failed, the window is too small for a cover).
++ * The cover says so itself, in Thumbnail; the living background reads it.
++ *
++ * One for the app, like the tour's targets and for the same reason: there is one full player on
++ * screen at a time, and the two ends are too far apart in the tree to hand it down.
++ */
++object PlayerCoverPlace {
++    var bounds by mutableStateOf<Rect?>(null)
++}
++
++/**
++ * The one pace every living picture in the app is redrawn at. Two can be up at once, the player's
++ * and the sample in Settings under it, and each with a pace of its own would have frames of its
++ * own: a window redrawn sixty times a second for two pictures redrawn thirty times each. Asked on
++ * the main thread only, where the frames come.
++ */
++private val redraws = RedrawPace()
++
++/** What the drawing keeps between frames, so that a frame allocates nothing. */
++private class Look {
++    var lastCover: Rect? = null
++
++    /** True from when the picture stops being drawn, off screen, until its frames start again. */
++    var unseen = false
++
++    val discs = LivingDiscs()
++}
++
++/**
++ * What Living blur is drawn with: soft discs of colour, and the field of them the motion says.
++ * The player draws with it, and so does a lyrics video (LyricsVideoFrames), so that the two look
++ * the same. Allocates nothing once made.
++ */
++internal class LivingDiscs {
++    private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
++    private val into = RectF()
++
++    /**
++     * A disc that fades to nothing at its rim, as transparency alone: drawn through a paint, it
++     * takes the paint's colour. One small bitmap stretched to every size, where a gradient would
++     * be a new shader for each of some twenty discs sixty times a second.
++     */
++    private val soft: Bitmap = run {
++        val side = 64
++        val alphas = IntArray(side * side) {
++            val x = (it % side + 0.5f) / side * 2 - 1
++            val y = (it / side + 0.5f) / side * 2 - 1
++            val inside = max(0f, 1f - (x * x + y * y))
++            // level in the middle and at the rim, steepest half way
++            ((inside * inside * 255).toInt() shl 24)
++        }
++        createBitmap(side, side, Bitmap.Config.ALPHA_8).apply { setPixels(alphas, 0, side, 0, 0, side, side) }
++    }
++
++    fun disc(canvas: android.graphics.Canvas, x: Float, y: Float, halfWidth: Float, halfHeight: Float, color: Int, strength: Float) {
++        paint.color = color
++        paint.alpha = (strength.coerceIn(0f, 1f) * 255).toInt()
++        into.set(x - halfWidth, y - halfHeight, x + halfWidth, y + halfHeight)
++        canvas.drawBitmap(soft, null, into, paint)
++    }
++
++    /**
++     * The field as [motion] has it now, over a picture [width] by [height]: what shows where the
++     * patches leave anything uncovered, the patches, and the bass's glow. Everything but the aura,
++     * which is round a cover only the player has.
++     */
++    fun field(canvas: android.graphics.Canvas, motion: LivingMotion, width: Float, height: Float) {
++        canvas.drawColor(motion.under)
++        val cellWidth = width / motion.columns
++        val cellHeight = height / motion.rows
++        for (i in 0 until motion.count) {
++            val radius = motion.radius(i)
++            disc(canvas, motion.x(i) * width, motion.y(i) * height, radius * cellWidth, radius * cellHeight, motion.color(i), 1f)
++        }
++        // A glow on the bottom edge and one on the top, half of each off the picture: the bass
++        // has both ends of it.
++        disc(canvas, width / 2, height, width * 0.8f, height * motion.glowHeight(), motion.glow, motion.glowStrength())
++        disc(canvas, width / 2, 0f, width * 0.8f, height * motion.glowHeight() * 0.7f, motion.glow, motion.glowStrength() * 0.8f)
++    }
++}
++
++/** The picture is drawn at one part in this many of its size, each way. */
++internal const val LIVING_SHRINK = 8
++
++/** How much the small picture is blurred before it is stretched, in its own pixels. Hides the steps of the stretching. */
++private const val SMOOTHING = 2.5f
++
++/**
++ * Lays the content out [LIVING_SHRINK] times smaller than the room it is given and stretches it back to
++ * fill that room, through a layer of its own so that it is the small picture that gets stretched
++ * and not its drawing that gets scaled. [stretched] is told by how much, each way. [alpha] is how
++ * much of the stretched picture shows: the layer's own, so that the picture is faded as one thing
++ * and nothing as big as the screen is drawn to fade it.
++ */
++private fun Modifier.drawnSmall(stretched: MutableState<Offset>, alpha: Float): Modifier = run {
++    var stretch by stretched
++    layout { measurable, constraints ->
++        if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
++            val placeable = measurable.measure(constraints)
++            return@layout layout(placeable.width, placeable.height) { placeable.place(0, 0) }
++        }
++        val width = constraints.maxWidth
++        val height = constraints.maxHeight
++        val small = measurable.measure(Constraints.fixed(max(1, width / LIVING_SHRINK), max(1, height / LIVING_SHRINK)))
++        stretch = Offset(width / small.width.toFloat(), height / small.height.toFloat())
++        layout(width, height) { small.place(0, 0) }
++    }.graphicsLayer {
++        scaleX = stretch.x
++        scaleY = stretch.y
++        transformOrigin = TransformOrigin(0f, 0f)
++        compositingStrategy = CompositingStrategy.Offscreen
++        this.alpha = alpha
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
++            renderEffect = BlurEffect(SMOOTHING, SMOOTHING, TileMode.Clamp)
++        }
++    }
++}
++
++/** Battery saver on: the picture stands still. */
++private fun wantsStillness(context: Context): Boolean = context.isPowerSaver()
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LivingField.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LivingField.kt
+new file mode 100644
+index 0000000..645eb1b
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LivingField.kt
+@@ -0,0 +1,1284 @@
++/*
++ * Copyright (C) 2026 InterTune
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.player
++
++import com.dd3boh.outertune.playback.MusicLevels
++import kotlin.math.PI
++import kotlin.math.abs
++import kotlin.math.atan2
++import kotlin.math.cos
++import kotlin.math.exp
++import kotlin.math.max
++import kotlin.math.min
++import kotlin.math.sin
++import kotlin.math.sqrt
++
++/**
++ * The living background's picture, with nothing of Android in it: what the cover is reduced to,
++ * and how that moves to the music. LivingBackground.kt draws it.
++ *
++ * The cover becomes a few patches of colour, and the patches breathe with the music: the rows at
++ * the top and the bottom of the screen with the bass, the rows between them with the voice, the
++ * very middle with the top of the spectrum ([bandOfRow]). A glow rises from the top and bottom
++ * edges with the bass, and an aura stands round the cover, which hides most of the rest.
++ *
++ * There are two ways of colouring it. As a picture of the cover: each patch is the colour of its
++ * part of the cover, the way the cover reads when it is blurred until nothing else is left of it
++ * ([patches]), and every patch takes a share of the kick, so that the picture moves as one. Or
++ * with the cover as a palette: three of its colours, picked to be told apart, one to a range
++ * ([mainColours]), and each range moves its own colour and no other ([OWN_SHARE]). The ranges
++ * then do not lie in rows but in ribbons with curved edges that flow with the music ([flowShares]).
++ */
++object LivingField {
++    /** Patches along the short side of the screen. Three is about what a 150 dp blur leaves of a cover on a phone. */
++    const val ACROSS = 3
++
++    /** No more patches than this along the long side, however long it is. */
++    const val MOST_ALONG = 7
++
++    /** A patch's radius at rest, in cells. Wide enough that neighbours run into each other. */
++    const val REST_RADIUS = 0.95f
++
++    /** How far a patch swells at full level, and how far a full bass pushes everything outwards. */
++    const val SWELL = 0.34f
++    const val LEAN = 0.05f
++
++    /** How far a patch wanders from its place, in cells. */
++    const val WANDER = 0.24f
++
++    /** A patch is this bright at rest and this much brighter at full level. The glow is its colour this much lighter. */
++    const val REST_LIGHT = 0.80f
++    const val FULL_LIGHT = 0.42f
++    const val GLOW_LIGHT = 1.3f
++
++    /**
++     * How much more colourful a patch is than the plain average of its part of the cover. An
++     * average of red and yellow on black is brown; this takes it some of the way back.
++     */
++    const val COLOUR = 1.3f
++
++    /**
++     * How fast the picture follows each range going up, how slowly it lets go, in seconds, and how
++     * much of the range's level it shows at all. Bass, middle, top. The bass is the whole show: a
++     * kick lands at once and fades over a third of a second. The top is busy in almost any song,
++     * and shown in full it made the upper edge of the screen flicker, so it comes softer and at half.
++     */
++    val RISE = floatArrayOf(0.030f, 0.045f, 0.070f)
++    val FALL = floatArrayOf(0.30f, 0.22f, 0.16f)
++    val SHARE = floatArrayOf(1f, 0.75f, 0.5f)
++
++    /**
++     * Colours take this long to turn into the next cover's, slowly at first and at the end
++     * ([eased]). It was under half a second and fastest in its first frame, which read as a cut
++     * with a tail on it.
++     */
++    const val COVER_TURN = 1.6f
++
++    /** A part [t] of the way, taken slowly at both ends: 0 at 0, 1 at 1, and level at each. */
++    fun eased(t: Float): Float {
++        val k = t.coerceIn(0f, 1f)
++        return k * k * (3f - 2f * k)
++    }
++
++    /**
++     * What a range shows is made of two things: how loud it is, and how much louder than it has
++     * been over the last [USUAL_OVER] seconds, which is a hit. A song whose bass never lets up is
++     * loud all the time, and shown by loudness alone it held the picture swollen and still; it is
++     * the kick on top of that bass that has to be seen. So loudness counts for [LEVEL_SHARE] and
++     * a hit for [HIT_SHARE] times its size.
++     */
++    const val USUAL_OVER = 0.4f
++    const val LEVEL_SHARE = 0.4f
++    const val HIT_SHARE = 1.8f
++
++    /**
++     * How strongly the picture answers the music is a setting, from 0 (it drifts and nothing else)
++     * to 1. [reach] turns it into the number every reaction is multiplied by: 1.5 in the middle,
++     * where the setting starts, and 3 at the top. However far that is turned up, a patch swells by
++     * no more than [MOST_SWELL] of itself and is lit no more than [MOST_LIGHT] times.
++     */
++    const val DEFAULT_STRENGTH = 0.5f
++    const val MOST_SWELL = 0.9f
++    const val MOST_LIGHT = 1.7f
++
++    fun reach(strength: Float): Float = if (strength.isNaN()) reach(DEFAULT_STRENGTH) else 3f * strength.coerceIn(0f, 1f)
++
++    /**
++     * How softly the picture follows the music is the other setting, 0 to 1. [ease] turns it into
++     * what every rise and fall time above is multiplied by: a quarter at the bottom, where the
++     * picture jumps with every hit, 1 in the middle, and four times at the top, where a kick is a
++     * slow swell and the whole thing breathes more than it beats.
++     */
++    const val DEFAULT_SMOOTHING = 0.5f
++
++    fun ease(smoothing: Float): Float =
++        if (smoothing.isNaN()) 1f else Math.pow(4.0, 2.0 * smoothing.coerceIn(0f, 1f) - 1.0).toFloat()
++
++    /**
++     * Every patch takes this much of the bass, whatever range its row breathes with. The bass has
++     * the top and the bottom of the screen to itself; the rows between are the voice's, and take
++     * just enough of a kick that the whole picture is felt to move as one.
++     */
++    const val KICK_EVERYWHERE = 0.3f
++
++    /**
++     * Coloured from the cover's main colours, every range has a colour of its own, and the point
++     * of that is to tell the ranges apart. So there each one moves its own part of the picture
++     * and nothing else: the voice's rows take no share of the kick, and the top of the spectrum
++     * is shown nearly in full, where it has a colour to itself and is no longer a flicker on
++     * somebody else's. The three are told apart by how they move as well. The bass pushes: it
++     * swells the most. The voice glows: it swells less and lights more. The top glints: it hardly
++     * swells and lights the most. And a range that is quiet sits a little darker than the bass
++     * does, so that it is seen to come in. Bass, middle, top.
++     */
++    val OWN_SHARE = floatArrayOf(1f, 1f, 0.85f)
++    val OWN_SWELL = floatArrayOf(1f, 0.7f, 0.4f)
++    val OWN_LIGHT = floatArrayOf(0.9f, 1.15f, 1.4f)
++    val OWN_REST = floatArrayOf(0.80f, 0.74f, 0.68f)
++
++    /**
++     * How much of a range's plain loudness shows when the ranges are kept apart ([LEVEL_SHARE]
++     * when they are not). A voice is held notes more than it is hits, and at the bass's share a
++     * sung line barely lit its rows.
++     */
++    val OWN_LEVEL = floatArrayOf(0.4f, 0.6f, 0.45f)
++
++    /**
++     * The song's shape, on top of its levels: a build-up, the drop and the part the drop sets off
++     * (MusicLevels.TENSION, DROP and DRIVE). Bar for bar the part after the drop is no louder
++     * than the part before the breakdown was, so the levels alone show the two alike, and the
++     * drop itself as one more kick.
++     *
++     * A build-up gathers the picture. The patches draw in towards the middle and shrink
++     * ([GATHER_IN], [GATHER_SHRINK]: by that much at full tension and a reach of 1), the picture's
++     * own time runs faster, so that everything in it flows and wanders quicker ([GATHER_PACE],
++     * added to its pace), and the top of the spectrum, which is what a build-up is made of,
++     * charges: it is shown as if it were that much louder ([GATHER_CHARGE]). All of it comes on
++     * over [GATHER_RISE] seconds, with the tension, and is let go of in [GATHER_FALL], which is
++     * the drop.
++     */
++    const val GATHER_IN = 0.05f
++    const val GATHER_SHRINK = 0.06f
++    const val GATHER_PACE = 0.8f
++    const val GATHER_CHARGE = 0.5f
++    const val GATHER_RISE = 0.6f
++    const val GATHER_FALL = 0.12f
++
++    /**
++     * The drop is one burst. Everything is pushed outwards ([BURST_PUSH], as [LEAN] is for a
++     * kick), every patch takes it as a full kick whatever range it breathes with, the halo round
++     * the cover reaches out by a full kick's worth more, the bass floods in over the voice as far
++     * as the top's line where each has its colour ([BURST_FLOOD]: the bass is taken that much
++     * further), and the whole picture is lit once ([BURST_LIGHT], on top of a kick's light). It is
++     * the one flash that is wanted. It is held for [BURST_HOLD] seconds, long enough to get there
++     * at a kick's pace, and gone over [BURST_FALL]. However hard, nothing is pushed out by more
++     * than [MOST_PUSH] of its distance from the middle.
++     */
++    const val BURST_PUSH = 0.08f
++    const val BURST_FLOOD = 1.2f
++    const val BURST_LIGHT = 0.3f
++    const val BURST_HOLD = 0.1f
++    const val BURST_FALL = 0.45f
++    const val MOST_PUSH = 0.35f
++
++    /**
++     * While the drive lasts everything answers the music that much more ([DRIVE_MORE]: the reach
++     * is 1 and that times what the setting makes it), the patches are bigger even between two
++     * kicks ([DRIVE_SWELL] at a reach of 1) and the picture's time runs faster ([DRIVE_PACE]). It
++     * is there with the drop, over [DRIVE_RISE] seconds, and goes over [DRIVE_FALL].
++     */
++    const val DRIVE_MORE = 0.35f
++    const val DRIVE_SWELL = 0.05f
++    const val DRIVE_PACE = 0.5f
++    const val DRIVE_RISE = 0.1f
++    const val DRIVE_FALL = 0.8f
++
++    /**
++     * The cover takes up most of the player, and what goes on behind it is not seen. So most of
++     * the reaction is put where it shows: an aura on the cover's edge, half of it hidden behind the
++     * cover and half spilling out round it, in the colours the cover has along that edge.
++     *
++     * Its radius is in parts of the cover's side: a thin halo at rest, [AURA_SWELL] more for a
++     * full level at a reach of 1, and never more than [AURA_MOST] in all.
++     */
++    const val AURA_REST = 0.10f
++    const val AURA_SWELL = 0.16f
++    const val AURA_MOST = 0.62f
++
++    /**
++     * One point of the aura.
++     *
++     * @param x where on the cover it sits, in parts of the cover's width and height: always on an edge
++     * @param patch the patch whose colour it takes, which is the part of the cover beside it
++     * @param band the range it answers besides the bass: the top edge the top of the spectrum, the sides the middle
++     * @param far how far round the cover it is from where a kick lands, 0 to 1. A kick lands in the
++     *   middle of the top and of the bottom edge and runs round from there, which is what makes
++     *   the halo look pushed rather than switched on.
++     */
++    class AuraPoint(val x: Float, val y: Float, val patch: Int, val band: Int, val far: Float)
++
++    /** The aura for a grid of [columns] by [rows]: one point for every patch on the grid's rim. */
++    fun aura(columns: Int, rows: Int): List<AuraPoint> {
++        // As the rows have it: the bass along the cover's top and bottom, the voice down its sides
++        // and the top of the spectrum at the middle of each side. A kick lands in the middle of
++        // the top and of the bottom edge and runs round to meet half way down the sides, which is
++        // one cover side away: half a side to the corner, half a side down.
++        val points = ArrayList<AuraPoint>(2 * (columns + rows))
++        for (row in 0 until rows) {
++            val y = (row + 0.5f) / rows
++            val band = if (kotlin.math.abs(y - 0.5f) < 1f / 6f) MusicLevels.HIGH else MusicLevels.MID
++            val far = 0.5f + min(y, 1f - y)
++            points += AuraPoint(0f, y, row * columns, band, far)
++            points += AuraPoint(1f, y, row * columns + columns - 1, band, far)
++        }
++        for (column in 0 until columns) {
++            val x = (column + 0.5f) / columns
++            val far = kotlin.math.abs(x - 0.5f)
++            points += AuraPoint(x, 0f, column, MusicLevels.BASS, far)
++            points += AuraPoint(x, 1f, (rows - 1) * columns + column, MusicLevels.BASS, far)
++        }
++        return points
++    }
++
++    /**
++     * How many patches along a side [long] when the other side is [short], so that a patch is
++     * about as wide as it is tall: round, where a square grid on a phone made tall pillars.
++     */
++    fun along(long: Float, short: Float, across: Int = ACROSS, most: Int = MOST_ALONG): Int =
++        if (short <= 0f || long <= 0f) across else Math.round(across * long / short).coerceIn(across, most)
++
++    /**
++     * Patches along the short side, and no more than so many along the long one, when the ranges
++     * lie in ribbons ([flowShares]): the ribbons' edges are curves, and three patches across
++     * cannot draw a curve.
++     */
++    const val FLOW_ACROSS = 5
++    const val FLOW_MOST_ALONG = 11
++
++    /**
++     * A patch's radius at rest where the ranges lie in ribbons, in cells. More than [REST_RADIUS]:
++     * there are more and smaller patches, each a sample of a colour that changes smoothly from
++     * place to place, and at the cover's radius they showed as dots.
++     */
++    const val FLOW_RADIUS = 1.35f
++
++    /** An edge between two ranges is this soft, in parts of the picture's height. */
++    const val FLOW_EDGE = 0.055f
++
++    private fun wave(turns: Float) = sin(2f * PI.toFloat() * turns)
++
++    /**
++     * Where the top of the spectrum's line is at [x], in parts of the height. It wanders across
++     * the middle of the picture, a little under half way down, which on a phone is just under
++     * the cover: one slow wave and a quicker, smaller one, each flowing its own way with [time].
++     */
++    fun flowLine(x: Float, time: Float): Float =
++        0.53f + 0.055f * wave(0.55f * x + 0.050f * time) + 0.030f * wave(1.25f * x - 0.071f * time + 0.21f)
++
++    /**
++     * Half the thickness of the top's ribbon at [x]: thicker and thinner along its length, and
++     * thicker with the cymbals ([top], 0 and up). Never thinner than a row of patches is tall, or
++     * there would be stretches of it that no patch stood in.
++     */
++    fun flowTop(x: Float, time: Float, top: Float): Float =
++        0.068f + 0.020f * wave(0.9f * x + 0.063f * time + 0.1f) + 0.045f * top
++
++    /**
++     * How far the voice reaches from the top's line at [x], above it or below: an edge with a
++     * curve of its own on each side, so that the two are never each other's mirror. No wave here
++     * or in [flowLine] has more than about one and a quarter turns across the picture: five
++     * patches across cannot draw a tighter one, and it came out as steps. A voice
++     * ([voice], 0 and up) pushes the edge out, a kick ([bass]) pushes it in: the bass comes in
++     * from both ends of the screen along a curved front.
++     */
++    fun flowVoice(x: Float, time: Float, above: Boolean, voice: Float, bass: Float): Float {
++        val still = if (above) {
++            0.21f + 0.055f * wave(0.7f * x - 0.045f * time + 0.33f) + 0.025f * wave(1.15f * x + 0.080f * time + 0.70f)
++        } else {
++            0.23f + 0.065f * wave(0.85f * x + 0.057f * time + 0.62f) + 0.025f * wave(1.3f * x - 0.090f * time + 0.15f)
++        }
++        return still + 0.06f * voice - 0.07f * bass
++    }
++
++    /**
++     * Where the bass begins at [x], as a distance from the top's line: the voice's own reach
++     * ([flowVoice]), but never so little that the voice has no room left between the top's ribbon
++     * and the bass, however hard the kick. Only a drop takes that room ([flood], 0 to 1): for
++     * that moment the bass comes in as far as the top's ribbon.
++     */
++    fun flowReach(x: Float, time: Float, above: Boolean, voice: Float, bass: Float, top: Float, flood: Float = 0f): Float =
++        max(flowTop(x, time, top) + (FLOW_EDGE + 0.02f) * (1f - flood.coerceIn(0f, 1f)), flowVoice(x, time, above, voice, bass))
++
++    /**
++     * How much of the point at [x], [y] (parts of the width and height) is each range's, into
++     * [into]: bass, voice, top, adding up to one.
++     *
++     * With a colour to each range the ranges do not lie in rows. The top of the spectrum runs
++     * along a line that wanders across the middle ([flowLine]); the voice lies either side of it
++     * as far as an edge that curves ([flowVoice]); the bass has everything beyond, which is the
++     * top and the bottom of the screen. Line and edges are waves and flow with [time], the
++     * picture's own, which runs with the music: nothing in the picture is a straight line, and
++     * nothing stays where it was. Rows of colour were what this replaced, and they looked ruled.
++     *
++     * [bass], [voice] and [top] are how far each range is taken by the music at this moment, and
++     * [flood] how much of a drop there is ([flowReach]).
++     */
++    fun flowShares(x: Float, y: Float, time: Float, bass: Float, voice: Float, top: Float, into: FloatArray, flood: Float = 0f) {
++        val line = flowLine(x, time)
++        val away = abs(y - line)
++        val thick = flowTop(x, time, top)
++        val reach = flowReach(x, time, y < line, voice, bass, top, flood)
++        val ofTop = 1f - eased((away - (thick - FLOW_EDGE / 2f)) / FLOW_EDGE)
++        val ofBass = eased((away - (reach - FLOW_EDGE / 2f)) / FLOW_EDGE)
++        into[MusicLevels.BASS] = ofBass
++        into[MusicLevels.HIGH] = ofTop
++        into[MusicLevels.MID] = max(0f, 1f - ofBass - ofTop)
++    }
++
++    /** [colors] mixed by [shares], channel by channel: as many of each as there are ranges. */
++    fun mixed(colors: IntArray, from: Int, shares: FloatArray): Int {
++        var r = 0f
++        var g = 0f
++        var b = 0f
++        for (k in shares.indices) {
++            val c = colors[from + k]
++            r += shares[k] * ((c shr 16) and 0xff)
++            g += shares[k] * ((c shr 8) and 0xff)
++            b += shares[k] * (c and 0xff)
++        }
++        return argb((r + 0.5f).toInt().coerceIn(0, 255), (g + 0.5f).toInt().coerceIn(0, 255), (b + 0.5f).toInt().coerceIn(0, 255))
++    }
++
++    /**
++     * The range a row breathes with, rows counted from the top: the rows at the top and at the
++     * bottom of the screen the bass, the rows between them the voice, and the very middle the top
++     * of the spectrum. The bass is what is felt, and it frames the picture; what is sung and
++     * played over it sits inside that frame, where the eye already is.
++     */
++    fun bandOfRow(row: Int, rows: Int): Int {
++        if (rows <= 2) return MusicLevels.BASS
++        val outer = max(1, (rows + 1) / 4)
++        if (row < outer || row >= rows - outer) return MusicLevels.BASS
++        val between = rows - 2 * outer
++        val inMiddle = if (between % 2 == 1) row == rows / 2 else row == rows / 2 - 1 || row == rows / 2
++        return if (between >= 3 && inMiddle) MusicLevels.HIGH else MusicLevels.MID
++    }
++
++    /**
++     * The range a patch breathes with: its row's ([bandOfRow]), in a picture taller than it is
++     * wide. A wide one, a phone on its side or the strip in Settings, has too few rows to give
++     * the top of the spectrum one, so there the middle third of the voice's row is the top's:
++     * still the very middle of the picture.
++     */
++    fun bandOfCell(column: Int, row: Int, columns: Int, rows: Int): Int {
++        val band = bandOfRow(row, rows)
++        if (band != MusicLevels.MID || rows >= 5 || columns < 5) return band
++        return if (abs((column + 0.5f) / columns - 0.5f) < 1f / 6f) MusicLevels.HIGH else MusicLevels.MID
++    }
++
++    /**
++     * The colour of each cell of a grid of [columns] by [rows] laid over the cover, row by row
++     * from the top left, as opaque ARGB: the cell's average, made [COLOUR] times as colourful.
++     * [pixels] is the cover, [width] by [height], row by row.
++     */
++    fun patches(pixels: IntArray, width: Int, height: Int, columns: Int, rows: Int): IntArray {
++        val cells = cells(pixels, width, height, columns, rows)
++        return IntArray(cells.size) { colourful(cells[it], COLOUR) }
++    }
++
++    /** How many main colours a cover is reduced to: one for each range. */
++    const val MAINS = MusicLevels.BANDS
++
++    /** The colour wheel is cut into this many parts to find a cover's hues: fifteen degrees each. */
++    private const val HUES = 24
++
++    /** A hue counts when it weighs this much of the heaviest. Less is a speck, or the fringe where two colours meet. */
++    private const val WORTH = 0.08f
++
++    /** A pixel has a hue when it is at least this colourful, in OKLab's measure (a pure red is 0.26). Under it, it is a grey. */
++    private const val HUED = 0.02f
++
++    /**
++     * In the dark a pixel has to be this colourful to have a hue, and it is in the dark under
++     * this lightness (OKLab's, 0 to 1). Near black that measure stretches differences nobody can
++     * see: a black of 6, 6, 20 comes out as colourful as a slate that is plainly bluish, and a
++     * black cover with grey lettering was given a royal blue for its accent.
++     */
++    private const val DARK = 0.25f
++    private const val HUED_IN_THE_DARK = 0.06f
++
++    /** A hue is one of the cover's colours when this much of the cover has it. Less is a few stray pixels. */
++    private const val SEEN_WORTH = 0.015f
++
++    /**
++     * A main colour is at most this many times as colourful as it is on the cover. Making a dark
++     * colour light enough to be seen multiplies its tint along with its light, and a charcoal
++     * with a faint cast came out a steel blue nobody could find on the cover.
++     */
++    private const val MOST_GAIN = 1.6f
++
++    /** The cover is a coloured one when this much of it has a hue at all. Less, and it is a grey cover with an accent. */
++    private const val COLOURED = 0.15f
++
++    /** White, or nearly, is a colour of the cover's when this much of the cover is that. */
++    private const val LIGHT_WORTH = 0.06f
++
++    /**
++     * A main colour's lightest channel is at least this, of 255: a navy is shown as a blue, or
++     * its range could not be seen to light up. A grey is held to less, so that a black cover
++     * still looks like one.
++     */
++    private const val BODY = 150
++    private const val GREY_BODY = 96
++
++    /** Two colours this far apart or less ([apart]) cannot be told from each other once they are blurred and moving. */
++    private const val TOO_ALIKE = 0.07f
++
++    /** One colour a cover could be told by: how much of the cover's colour it is, and where it lies in OKLab. */
++    private class Candidate(val color: Int, val weight: Float) {
++        val lab = FloatArray(3).also { oklab((color shr 16) and 0xff, (color shr 8) and 0xff, color and 0xff, it) }
++    }
++
++    /**
++     * How far apart two colours look, with their light counting for half. The picture lights
++     * every colour up and down with the music, so a dark red on a kick is a light red at rest:
++     * what tells two ranges apart for good is their hue and how colourful they are.
++     */
++    private fun apart(x: Candidate, y: Candidate): Float {
++        val light = 0.5f * (x.lab[0] - y.lab[0])
++        val a = x.lab[1] - y.lab[1]
++        val b = x.lab[2] - y.lab[2]
++        return sqrt(light * light + a * a + b * b)
++    }
++
++    /**
++     * The cover's main colours, one for each range: the bass's, the voice's, the top's. The other
++     * way of colouring the picture, for which the cover is a palette and not a picture.
++     *
++     * The cover's hues are weighed round a colour wheel on which equal steps look equally far
++     * apart (OKLab's), a vivid pixel for more than a dull one. The heaviest is the bass's, which
++     * has the most of the screen, so that the picture as a whole is the cover's colour. The other
++     * two are the pair, out of the cover's other hues and its white if it has any, that leaves
++     * the three furthest apart from each other ([apart]): they are there to tell three parts of
++     * the sound from each other, and that is all they are chosen for. Of that pair the lighter
++     * goes to the top of the spectrum and the other to the voice.
++     *
++     * It used to take the strongest of an eight by eight grid's averages that differed by so much
++     * in their channels, which on a cover of magenta and green gave a magenta, a pink and a
++     * green, and nobody could tell which of the first two was moving.
++     *
++     * A cover with too few colours for that is filled up with neighbours of its own hue. One with
++     * hardly any hue is a grey cover: its grey takes the bass and whatever colour it has is the
++     * accent. One with none gives its black, a grey and a white.
++     *
++     * No colour is made up: a hue counts only when enough of the cover has it ([SEEN_WORTH]) and
++     * it can be seen there ([HUED], [HUED_IN_THE_DARK]), and what is shown of it is not much more
++     * colourful than what is on the cover ([MOST_GAIN]).
++     */
++    fun mainColours(pixels: IntArray, width: Int, height: Int): IntArray {
++        if (width <= 0 || height <= 0 || pixels.size < width * height) return IntArray(MAINS) { GREY }
++        val weight = FloatArray(HUES)
++        val counts = IntArray(HUES)
++        val reds = FloatArray(HUES)
++        val greens = FloatArray(HUES)
++        val blues = FloatArray(HUES)
++        var seen = 0
++        var coloured = 0
++        var lights = 0
++        val light = LongArray(3)
++        var greys = 0
++        val grey = LongArray(3)
++        val lab = FloatArray(3)
++        // some four thousand pixels say as much as all of them
++        val stride = max(1, sqrt(width.toFloat() * height / 4096f).toInt())
++        var y = 0
++        while (y < height) {
++            var x = 0
++            while (x < width) {
++                val p = pixels[y * width + x]
++                val r = (p shr 16) and 0xff
++                val g = (p shr 8) and 0xff
++                val b = p and 0xff
++                oklab(r, g, b, lab)
++                val chroma = sqrt(lab[1] * lab[1] + lab[2] * lab[2])
++                seen++
++                if (chroma >= HUED && (lab[0] >= DARK || chroma >= HUED_IN_THE_DARK)) {
++                    val degrees = Math.toDegrees(atan2(lab[2].toDouble(), lab[1].toDouble())).toFloat().let { if (it < 0f) it + 360f else it }
++                    val bin = Math.round(degrees * HUES / 360f) % HUES
++                    weight[bin] += chroma
++                    counts[bin]++
++                    reds[bin] += chroma * r
++                    greens[bin] += chroma * g
++                    blues[bin] += chroma * b
++                    coloured++
++                } else if (lab[0] >= 0.82f) {
++                    lights++
++                    light[0] += r.toLong(); light[1] += g.toLong(); light[2] += b.toLong()
++                } else {
++                    greys++
++                    grey[0] += r.toLong(); grey[1] += g.toLong(); grey[2] += b.toLong()
++                }
++                x += stride
++            }
++            y += stride
++        }
++
++        // A hue's weight and colour take in the parts of the wheel either side of it.
++        fun around(bin: Int) = weight[bin] + 0.6f * (weight[(bin + HUES - 1) % HUES] + weight[(bin + 1) % HUES])
++        fun colourOf(bin: Int): Int {
++            var w = 0f
++            var r = 0f
++            var g = 0f
++            var b = 0f
++            for (near in intArrayOf((bin + HUES - 1) % HUES, bin, (bin + 1) % HUES)) {
++                w += weight[near]; r += reds[near]; g += greens[near]; b += blues[near]
++            }
++            val onCover = argb((r / w).toInt(), (g / w).toInt(), (b / w).toInt())
++            val shown = withBody(colourful(onCover, 1.15f), BODY)
++            val was = colourfulness(onCover)
++            val now = colourfulness(shown)
++            return if (now > MOST_GAIN * was) colourful(shown, MOST_GAIN * was / now) else shown
++        }
++        fun share(bin: Int) = (counts[(bin + HUES - 1) % HUES] + counts[bin] + counts[(bin + 1) % HUES]).toFloat() / seen
++        val worthy = (0 until HUES).filter { weight[it] > 0f && share(it) >= SEEN_WORTH }
++        val heaviest = worthy.maxByOrNull { around(it) }
++        val hues = if (heaviest == null) emptyList() else
++            worthy.filter { around(it) >= WORTH * around(heaviest) }.map { Candidate(colourOf(it), around(it)) }
++        // White weighs as a colour a third as vivid as a pure one would: a cover that is a fifth white has a white.
++        val white = if (lights >= LIGHT_WORTH * seen) {
++            Candidate(argb(min(232, (light[0] / lights).toInt()), min(232, (light[1] / lights).toInt()), min(232, (light[2] / lights).toInt())), lights * 0.08f)
++        } else null
++        val dull = if (greys > 0) withBody(colourful(argb((grey[0] / greys).toInt(), (grey[1] / greys).toInt(), (grey[2] / greys).toInt()), 0f), GREY_BODY) else null
++
++        val bass: Int
++        val others: List<Candidate>
++        if (heaviest == null || coloured < COLOURED * seen) {
++            // A grey cover: its grey, or its white when there is more of that, and what else it has.
++            val whiter = white != null && (dull == null || lights > greys)
++            bass = if (whiter) white!!.color else dull ?: GREY
++            others = hues + listOfNotNull(white.takeUnless { whiter }, dull?.takeIf { whiter }?.let { Candidate(it, greys * 0.08f) })
++        } else {
++            bass = colourOf(heaviest)
++            others = hues.filter { it.color != bass } + listOfNotNull(white)
++        }
++        val first = Candidate(bass, 0f)
++
++        // The pair that leaves the three furthest apart; of pairs about as far apart, the heavier.
++        var pair: Pair<Candidate, Candidate>? = null
++        var pairScore = 0f
++        for (i in others.indices) for (j in i + 1 until others.size) {
++            val least = min(apart(first, others[i]), min(apart(first, others[j]), apart(others[i], others[j])))
++            val score = Math.round(least / 0.03f) + 0.5f * min(1f, (others[i].weight + others[j].weight) / (others.maxOf { it.weight } * 2f))
++            if (least > TOO_ALIKE && score > pairScore) {
++                pairScore = score
++                pair = others[i] to others[j]
++            }
++        }
++        val a: Int
++        val b: Int
++        if (pair != null) {
++            a = pair.first.color
++            b = pair.second.color
++        } else {
++            // One other colour worth the name at most. The rest are the bass's neighbours: a grey's
++            // are greys a step lighter or darker, a hue's a little way round the wheel one way and
++            // lighter the other.
++            val other = others.filter { apart(first, it) > TOO_ALIKE }.maxByOrNull { apart(first, it) }?.color
++            if (isGrey(bass)) {
++                // Black, grey and white, or the other way up for a white cover: the far end of the
++                // greys from the bass's, and the grey half way there.
++                val far = if (luma(bass) > 150) 0xff383838.toInt() else 0xffe8e8e8.toInt()
++                a = other ?: far
++                b = between(bass, if (other != null && isGrey(other)) other else far, 0.5f)
++            } else {
++                a = other ?: turned(bass, 40f)
++                b = between(turned(bass, -30f), 0xffffffff.toInt(), 0.45f)
++            }
++        }
++        return if (luma(a) >= luma(b)) intArrayOf(bass, b, a) else intArrayOf(bass, a, b)
++    }
++
++    /** How colourful a colour looks, in OKLab's measure: nothing for a grey, about a quarter for a pure red. */
++    fun colourfulness(color: Int): Float {
++        val lab = FloatArray(3)
++        oklab((color shr 16) and 0xff, (color shr 8) and 0xff, color and 0xff, lab)
++        return sqrt(lab[1] * lab[1] + lab[2] * lab[2])
++    }
++
++    private fun isGrey(color: Int): Boolean {
++        val r = (color shr 16) and 0xff
++        val g = (color shr 8) and 0xff
++        val b = color and 0xff
++        return max(r, max(g, b)) - min(r, min(g, b)) < 12
++    }
++
++    /** What an sRGB channel is in light, 0 to 1, for each of its 256 values. */
++    private val LINEAR = FloatArray(256) {
++        val c = it / 255.0
++        (if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)).toFloat()
++    }
++
++    /**
++     * A colour in OKLab, into [into]: how light it is from 0 to 1, then its two colour axes. The
++     * angle of those two is its hue and their length how colourful it is, and both go by what is
++     * seen: equal steps look equally far apart, which the hue of red, green and blue does not do.
++     */
++    private fun oklab(r: Int, g: Int, b: Int, into: FloatArray) {
++        val red = LINEAR[r]
++        val green = LINEAR[g]
++        val blue = LINEAR[b]
++        val l = Math.cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue)
++        val m = Math.cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue)
++        val s = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue)
++        into[0] = (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s).toFloat()
++        into[1] = (1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s).toFloat()
++        into[2] = (0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s).toFloat()
++    }
++
++    /** [color] made lighter, hue and all, until its lightest channel is [body]. One that is lighter already is left alone, and black is a grey. */
++    private fun withBody(color: Int, body: Int): Int {
++        val most = max((color shr 16) and 0xff, max((color shr 8) and 0xff, color and 0xff))
++        return when {
++            most >= body -> color
++            most == 0 -> argb(body, body, body)
++            else -> lit(color, body / most.toFloat())
++        }
++    }
++
++    /** [color] with its hue turned [degrees] round the wheel, as light and as colourful as it was. */
++    fun turned(color: Int, degrees: Float): Int {
++        val r = (color shr 16) and 0xff
++        val g = (color shr 8) and 0xff
++        val b = color and 0xff
++        val most = max(r, max(g, b))
++        val chroma = most - min(r, min(g, b))
++        if (chroma == 0) return color
++        val was = when (most) {
++            r -> ((g - b).toFloat() / chroma).let { if (it < 0f) it + 6f else it }
++            g -> (b - r).toFloat() / chroma + 2f
++            else -> (r - g).toFloat() / chroma + 4f
++        }
++        val sixth = ((was + degrees / 60f) % 6f + 6f) % 6f
++        // the three channels of a hue: full, none, and one on its way between them
++        val part = chroma * (1f - abs(sixth % 2f - 1f))
++        val least = (most - chroma).toFloat()
++        val (red, green, blue) = when (sixth.toInt()) {
++            0 -> Triple(chroma.toFloat(), part, 0f)
++            1 -> Triple(part, chroma.toFloat(), 0f)
++            2 -> Triple(0f, chroma.toFloat(), part)
++            3 -> Triple(0f, part, chroma.toFloat())
++            4 -> Triple(part, 0f, chroma.toFloat())
++            else -> Triple(chroma.toFloat(), 0f, part)
++        }
++        return argb((red + least + 0.5f).toInt(), (green + least + 0.5f).toInt(), (blue + least + 0.5f).toInt())
++    }
++
++    /** How light a colour looks, 0 to 255. */
++    fun luma(color: Int): Int = (299 * ((color shr 16) and 0xff) + 587 * ((color shr 8) and 0xff) + 114 * (color and 0xff)) / 1000
++
++    /** The plain average colour of each cell, row by row from the top left. */
++    private fun cells(pixels: IntArray, width: Int, height: Int, columns: Int, rows: Int): IntArray {
++        val out = IntArray(columns * rows)
++        if (width <= 0 || height <= 0 || pixels.size < width * height) return out.also { it.fill(GREY) }
++        for (row in 0 until rows) {
++            for (column in 0 until columns) {
++                val left = column * width / columns
++                val right = max(left + 1, (column + 1) * width / columns)
++                val top = row * height / rows
++                val bottom = max(top + 1, (row + 1) * height / rows)
++                var r = 0L
++                var g = 0L
++                var b = 0L
++                var n = 0
++                for (y in top until min(bottom, height)) {
++                    for (x in left until min(right, width)) {
++                        val p = pixels[y * width + x]
++                        r += (p shr 16) and 0xff
++                        g += (p shr 8) and 0xff
++                        b += p and 0xff
++                        n++
++                    }
++                }
++                out[row * columns + column] = if (n == 0) GREY else argb((r / n).toInt(), (g / n).toInt(), (b / n).toInt())
++            }
++        }
++        return out
++    }
++
++    /** The colour of the whole cover, for whatever the patches leave uncovered. */
++    fun average(patches: IntArray): Int {
++        if (patches.isEmpty()) return GREY
++        var r = 0
++        var g = 0
++        var b = 0
++        for (p in patches) {
++            r += (p shr 16) and 0xff
++            g += (p shr 8) and 0xff
++            b += p and 0xff
++        }
++        return argb(r / patches.size, g / patches.size, b / patches.size)
++    }
++
++    /**
++     * The cover's strongest colour, for the glow: the patch that is the most colourful without
++     * being nearly black. A grey cover gives its lightest grey.
++     */
++    fun strongest(patches: IntArray): Int {
++        var best = GREY
++        var bestScore = -1f
++        for (p in patches) {
++            val score = strength(p)
++            if (score > bestScore) {
++                bestScore = score
++                best = p
++            }
++        }
++        return best
++    }
++
++    /** How strong a colour is: how colourful, counted for more the lighter it is, with light alone breaking a tie between greys. */
++    private fun strength(color: Int): Float {
++        val r = ((color shr 16) and 0xff) / 255f
++        val g = ((color shr 8) and 0xff) / 255f
++        val b = (color and 0xff) / 255f
++        val most = max(r, max(g, b))
++        val least = min(r, min(g, b))
++        return (most - least) * (0.35f + 0.65f * most) + 0.02f * most
++    }
++
++    /** [color] with its light multiplied by [light], which may be above 1; no channel overflows. */
++    fun lit(color: Int, light: Float): Int {
++        val r = min(255f, ((color shr 16) and 0xff) * light).toInt()
++        val g = min(255f, ((color shr 8) and 0xff) * light).toInt()
++        val b = min(255f, (color and 0xff) * light).toInt()
++        return argb(max(0, r), max(0, g), max(0, b))
++    }
++
++    /**
++     * [color] with each channel [by] times as far from its grey: more colourful above 1, grey at
++     * 0. A grey stays the grey it is, and nothing leaves the range.
++     */
++    fun colourful(color: Int, by: Float): Int {
++        val r = (color shr 16) and 0xff
++        val g = (color shr 8) and 0xff
++        val b = color and 0xff
++        val grey = 0.299f * r + 0.587f * g + 0.114f * b
++        fun channel(c: Int) = (grey + (c - grey) * by + 0.5f).toInt().coerceIn(0, 255)
++        return argb(channel(r), channel(g), channel(b))
++    }
++
++    /** [from] a part [t] of the way to [to], channel by channel. */
++    fun between(from: Int, to: Int, t: Float): Int {
++        val k = t.coerceIn(0f, 1f)
++        fun channel(shift: Int): Int {
++            val a = (from shr shift) and 0xff
++            val b = (to shr shift) and 0xff
++            return (a + (b - a) * k + 0.5f).toInt()
++        }
++        return argb(channel(16), channel(8), channel(0))
++    }
++
++    private fun argb(r: Int, g: Int, b: Int) = (0xff shl 24) or (r shl 16) or (g shl 8) or b
++
++    const val GREY = 0xff595959.toInt()
++}
++
++/**
++ * Where the picture is at one moment, for a grid of [columns] by [rows] patches. [moveTo] moves it
++ * on to the moment of a frame, one [step] after another; the getters say where each patch is to be
++ * drawn. One instance lives as long as the player's screen keeps its shape.
++ */
++class LivingMotion(val columns: Int = LivingField.ACROSS, val rows: Int = LivingField.ACROSS) {
++    val count = columns * rows
++
++    /** The levels as the picture shows them: up at once, down slowly. */
++    val shown = FloatArray(MusicLevels.BANDS)
++
++    /** The picture's own time, in seconds. It runs with the music and stops with it. */
++    var drift = 0f
++        private set
++
++    /** How fast [drift] runs against the clock: 1 with music playing, down to 0 without. */
++    var pace = 0f
++        private set
++
++    /** The setting, 0 to 1 (see [LivingField.reach]). */
++    var strength = LivingField.DEFAULT_STRENGTH
++
++    /** What every reaction is multiplied by: the setting's, and more of it while a drop drives the song on. */
++    private val reach get() = LivingField.reach(strength) * (1f + LivingField.DRIVE_MORE * driven)
++
++    /**
++     * The song's shape as the picture shows it, each 0 to 1: how gathered it is by a build-up,
++     * the burst of a drop, and how driven it is by one (see [LivingField.GATHER_IN] and after).
++     */
++    var gathered = 0f
++        private set
++    var burst = 0f
++        private set
++    var driven = 0f
++        private set
++
++    // A drop is said once. From there the burst is the picture's own: held at what the drop was
++    // for a moment, then let go.
++    private var dropHeard = 0f
++    private var burstTo = 0f
++    private var burstFor = 0f
++
++    /** The other setting, 0 to 1 (see [LivingField.ease]). */
++    var smoothing = LivingField.DEFAULT_SMOOTHING
++
++    /**
++     * True when the picture is coloured from the cover's main colours, one to a range: each range
++     * then moves its own colour and no other (see [LivingField.OWN_SHARE]), and the ranges lie in
++     * ribbons with curved edges that flow ([LivingField.flowShares]), not in rows.
++     */
++    var separate = false
++
++    /** The range each patch breathes with, in a picture of the cover. */
++    private val bands = IntArray(count) { LivingField.bandOfCell(it % columns, it / columns, columns, rows) }
++
++    /**
++     * How far the music takes range [band] when each has its own colour: what moves its edge and
++     * lights it. A build-up charges the top's, and on a drop the bass floods in.
++     */
++    private fun own(band: Int): Float = reach * (shown[band] * LivingField.OWN_SHARE[band] + ofShape(band))
++
++    /** What the song's shape adds to how far range [band] is taken. */
++    private fun ofShape(band: Int): Float = when (band) {
++        MusicLevels.HIGH -> LivingField.GATHER_CHARGE * gathered
++        MusicLevels.BASS -> LivingField.BURST_FLOOD * burst
++        else -> 0f
++    }
++
++    private val share = FloatArray(MusicLevels.BANDS)
++
++    /** How much of the point at [x], [y] is each range's at this moment, left in [share]. */
++    private fun sharesAt(x: Float, y: Float) =
++        LivingField.flowShares(x, y, drift, own(MusicLevels.BASS), own(MusicLevels.MID), own(MusicLevels.HIGH), share, flood = min(1f, reach * burst))
++
++    /** The same for patch [i], where it lives: the patches wander a little, the ribbons do not wander with them. */
++    private fun sharesOf(i: Int) = sharesAt((i % columns + 0.5f) / columns, (i / columns + 0.5f) / rows)
++
++    /** How much of the point at [x], [y] is each range's: bass, voice, top. For whoever wants to know where the ribbons are. */
++    fun sharesAt(x: Float, y: Float, into: FloatArray) {
++        sharesAt(x, y)
++        share.copyInto(into)
++    }
++
++    /** The aura round the cover, and how far each of its points is taken: 0 to 1, and beyond for a drop. */
++    val aura = LivingField.aura(columns, rows)
++    val auraShown = FloatArray(aura.size)
++
++    // Where the cover is in the picture, in parts of its width and height. Only the aura asks.
++    private var coverLeft = 0f
++    private var coverTop = 0f
++    private var coverRight = 1f
++    private var coverBottom = 1f
++
++    /** Says where the cover is, in parts of the picture's width and height. */
++    fun coverAt(left: Float, top: Float, right: Float, bottom: Float) {
++        coverLeft = left
++        coverTop = top
++        coverRight = right
++        coverBottom = bottom
++    }
++
++    /**
++     * The ranges at the place a point of the aura stands on, left in [share]. With a colour to
++     * each range the halo takes its colour and its range from the ribbons behind it: the cover
++     * hides most of what it stands in front of, and its edge is where that can be seen.
++     */
++    private fun sharesOfAura(i: Int) {
++        val point = aura[i]
++        sharesAt(coverLeft + point.x * (coverRight - coverLeft), coverTop + point.y * (coverBottom - coverTop))
++    }
++
++    /** Whether there is a cover on screen to put the aura round. Without one it fades away. */
++    var coverThere = false
++
++    /** How much of the aura is there, 0 to 1: it comes and goes with the cover over a quarter of a second. */
++    var auraPresence = 0f
++        private set
++
++    /**
++     * The colours on screen, turning into [turnTo]'s cover: the [count] patches, then [under],
++     * then [glow], then the three main colours, the bass's first.
++     */
++    val colors = IntArray(count + 2 + LivingField.MAINS) { LivingField.GREY }
++    private var wanted = IntArray(count + 2 + LivingField.MAINS) { LivingField.GREY }
++    private val turnedFrom = IntArray(count + 2 + LivingField.MAINS) { LivingField.GREY }
++    private val mainsAt = count + 2
++    private var turn = 1f
++    private var coverKnown = false
++
++    /** What each range has been lately, to tell a hit from a level. */
++    private val usual = FloatArray(MusicLevels.BANDS)
++
++    /** What shows where the patches leave anything uncovered: the cover's colour as a whole. */
++    val under get() = colors[count]
++
++    /** The colour of the glow on the bottom edge: the cover's strongest. */
++    val glow get() = colors[count + 1]
++
++    /**
++     * The next cover's patches. The first cover is shown at once, later ones are turned into.
++     * [glow] is the colour the glow on the top and bottom edges is made from: the bass's own when
++     * the ranges each have one, and left out, the strongest of the patches. [mains] are the three
++     * colours of the ranges ([LivingField.mainColours]), for a picture made of those.
++     */
++    fun turnTo(patches: IntArray, glow: Int? = null, mains: IntArray? = null) {
++        val next = IntArray(count + 2 + LivingField.MAINS)
++        patches.copyInto(next, endIndex = minOf(count, patches.size))
++        for (i in patches.size until count) next[i] = LivingField.GREY
++        val cover = next.copyOf(count)
++        next[count] = LivingField.lit(LivingField.average(cover), LivingField.REST_LIGHT)
++        next[count + 1] = LivingField.lit(glow ?: LivingField.strongest(cover), LivingField.GLOW_LIGHT)
++        for (k in 0 until LivingField.MAINS) next[mainsAt + k] = mains?.getOrNull(k) ?: LivingField.GREY
++        wanted = next
++        if (!coverKnown) {
++            wanted.copyInto(colors)
++            coverKnown = true
++            turn = 1f
++        } else {
++            // from what is on screen now, so a cover that arrives while another is still being
++            // turned into does not jump
++            colors.copyInto(turnedFrom)
++            turn = 0f
++        }
++    }
++
++    /**
++     * Moves on by [seconds]. [levels] is what is being heard (the three ranges, and after them how
++     * much is going on and where the song is in its shape, as far as it goes), or null when there
++     * is nothing to go by (paused, or audio that cannot be measured); [playing] says whether the
++     * music runs at all.
++     * With music but no levels the picture still drifts, it just does not breathe.
++     */
++    fun step(seconds: Float, levels: FloatArray?, playing: Boolean) {
++        val dt = seconds.coerceIn(0f, 0.1f)          // a long gap between frames is not a leap in the picture
++        val ease = LivingField.ease(smoothing)
++        // How much is going on, when the levels say: a quiet passage is measured against itself,
++        // and shown in full it flashed as hard as the loudest part of the song.
++        val going = levels?.getOrNull(MusicLevels.PRESENCE)?.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 1f
++        for (band in 0 until MusicLevels.BANDS) {
++            val level = levels?.get(band)?.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
++            val hit = max(0f, level - usual[band])
++            usual[band] += (level - usual[band]) * part(dt, LivingField.USUAL_OVER)
++            val steady = if (separate) LivingField.OWN_LEVEL[band] else LivingField.LEVEL_SHARE
++            val to = going * min(1f, steady * level + LivingField.HIT_SHARE * hit)
++            val within = if (to > shown[band]) LivingField.RISE[band] else LivingField.FALL[band]
++            shown[band] += (to - shown[band]) * part(dt, within * ease)
++        }
++        // The song's shape, when the levels say: like them, it counts for as much as is going on.
++        val tension = going * shapeIn(levels, MusicLevels.TENSION)
++        val drop = going * shapeIn(levels, MusicLevels.DROP)
++        val drive = going * shapeIn(levels, MusicLevels.DRIVE)
++        gathered += (tension - gathered) * part(dt, (if (tension > gathered) LivingField.GATHER_RISE else LivingField.GATHER_FALL) * ease)
++        driven += (drive - driven) * part(dt, (if (drive > driven) LivingField.DRIVE_RISE else LivingField.DRIVE_FALL) * ease)
++        // What is heard of a drop fades from its first frame. Coming up is the drop itself, and
++        // what the burst goes to is the most that is heard of it while it is held.
++        if (drop > dropHeard + 0.05f) {
++            burstTo = 0f
++            burstFor = LivingField.BURST_HOLD * ease
++        }
++        dropHeard = drop
++        if (burstFor > 0f) {
++            burstFor -= dt
++            burstTo = max(burstTo, drop)
++        } else {
++            burstTo = 0f
++        }
++        burst += (burstTo - burst) * part(dt, (if (burstTo > burst) LivingField.RISE[MusicLevels.BASS] else LivingField.BURST_FALL) * ease)
++        for (i in aura.indices) {
++            val point = aura[i]
++            val to: Float
++            val far: Float
++            if (separate) {
++                // by the ranges it stands on, each for its share
++                sharesOfAura(i)
++                var sum = 0f
++                for (band in 0 until MusicLevels.BANDS) sum += share[band] * shown[band] * LivingField.OWN_SHARE[band]
++                to = sum
++                // The voice and the top have no place they land: they come all along their stretch at once.
++                far = share[MusicLevels.BASS] * point.far + (1f - share[MusicLevels.BASS]) * 0.15f
++            } else {
++                to = max(shown[MusicLevels.BASS], 0.6f * shown[point.band] * LivingField.SHARE[point.band])
++                far = point.far
++            }
++            // a drop reaches out all the way round, beyond what any kick does, and later and
++            // softer the further round the cover from where the kick lands
++            val out = to + burst
++            val within = if (out > auraShown[i]) 0.012f + 0.11f * far else 0.20f + 0.16f * far
++            auraShown[i] += (out - auraShown[i]) * part(dt, within * ease)
++        }
++        auraPresence += ((if (coverThere) 1f else 0f) - auraPresence) * part(dt, 0.12f)
++        pace += ((if (playing) 1f else 0f) - pace) * part(dt, 0.7f)
++        // quicker when the music is loud, quicker still while it builds up and while a drop drives
++        // it, never still while it plays
++        val hurry = min(1f, reach) * (LivingField.GATHER_PACE * gathered + LivingField.DRIVE_PACE * driven)
++        drift += dt * pace * (0.55f + 0.9f * max(shown[MusicLevels.BASS], shown[MusicLevels.MID]) + hurry)
++        if (turn < 1f) {
++            turn = min(1f, turn + dt / LivingField.COVER_TURN)
++            val by = LivingField.eased(turn)
++            for (i in colors.indices) colors[i] = LivingField.between(turnedFrom[i], wanted[i], by)
++        }
++    }
++
++    /** What is being heard at a moment, for [moveTo] to ask at each of its steps: the levels as [step] takes them, or null for nothing to go by. */
++    fun interface Heard {
++        fun at(nanos: Long): FloatArray?
++    }
++
++    /** The moment the picture has been moved on to, as the screen's frames tell the time. 0 before the first. */
++    private var movedTo = 0L
++
++    /**
++     * Moves on to the frame at [nanos], by the clock and in steps of its own: [STEPS_A_SECOND] to
++     * the second, however many frames the screen has in one and whichever of them the picture is
++     * drawn on. It used to take one step for every frame of the screen, as long as the frame was,
++     * which tied how it moved to how often it was drawn. Now it moves as fast drawn thirty times
++     * a second as drawn on every frame, and where it is at a moment does not depend on which
++     * frames came before.
++     *
++     * Each step is told what is heard as it ends ([heard]; without it, or with null for an
++     * answer, there is nothing to go by, as in [step]). The picture is taken to the step nearest
++     * the frame, so it is never more than half a step from the frame's own time. The first frame
++     * only starts the clock, and a long gap between two frames is not a leap in the picture: no
++     * more than [MOST_GAP_NANOS] of it is made up.
++     */
++    fun moveTo(nanos: Long, playing: Boolean, heard: Heard? = null) {
++        if (movedTo == 0L || nanos + STEP_NANOS < movedTo) movedTo = nanos
++        if (nanos - movedTo > MOST_GAP_NANOS) movedTo = nanos - MOST_GAP_NANOS
++        while (2 * (nanos - movedTo) >= STEP_NANOS) {
++            movedTo += STEP_NANOS
++            step(STEP_SECONDS, heard?.at(movedTo), playing)
++        }
++    }
++
++    /**
++     * A frame of the screen's, at [nanos]. When [pace] has the picture redrawn on it, the picture
++     * is moved on to it and this is true. When not, nothing of it is touched, and nothing is to be
++     * drawn.
++     */
++    fun frame(nanos: Long, pace: RedrawPace, playing: Boolean, heard: Heard? = null): Boolean {
++        if (!pace.due(nanos)) return false
++        moveTo(nanos, playing, heard)
++        return true
++    }
++
++    /**
++     * How far ahead of what is being heard the levels should be read, in seconds. The audio is
++     * measured well before it is heard, so the picture can be started early by what it takes to
++     * get it on screen: a frame or two on its way to the display, and the time a rise takes to be
++     * seen. Read at the moment itself, the picture lands after the sound, every time.
++     */
++    fun lead(): Float = 0.045f + 0.6f * LivingField.RISE[MusicLevels.BASS] * LivingField.ease(smoothing)
++
++    /**
++     * The colours as the last cover wants them, at once: for when the picture comes back on
++     * screen. Covers go on arriving while it is off ([turnTo]) and nothing steps, so it used to
++     * come back in the colours of whatever song it was showing when it left, and then turn.
++     */
++    fun arrive() {
++        wanted.copyInto(colors)
++        turn = 1f
++    }
++
++    /** Straight to rest, with the cover's colours as they are: for when nothing is to move at all. */
++    fun settle() {
++        arrive()
++        usual.fill(0f)
++        shown.fill(0f)
++        auraShown.fill(0f)
++        auraPresence = if (coverThere) 1f else 0f
++        pace = 0f
++        gathered = 0f
++        driven = 0f
++        burst = 0f
++        burstTo = 0f
++        burstFor = 0f
++        dropHeard = 0f
++    }
++
++    /** True when nothing would change on another [step] without music: the frames can stop. */
++    fun atRest(): Boolean = pace < 0.01f && shown.all { it < 0.005f } && auraShown.all { it < 0.005f } &&
++        gathered < 0.005f && burst < 0.005f && driven < 0.005f &&
++        kotlin.math.abs(auraPresence - (if (coverThere) 1f else 0f)) < 0.01f && turn >= 1f && colors.contentEquals(wanted)
++
++    /** The share of the way covered in [dt] by something that takes [within] seconds to get most of the way. */
++    private fun part(dt: Float, within: Float) = 1f - exp(-dt / within)
++
++    /** One of the values that say where the song is in its shape, or nothing when the levels do not go that far. */
++    private fun shapeIn(levels: FloatArray?, value: Int): Float =
++        levels?.getOrNull(value)?.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
++
++    // Where patch [i] is drawn. x and y in parts of the width and height, the radius in cells.
++
++    fun x(i: Int): Float {
++        val home = (i % columns + 0.5f) / columns
++        val wander = LivingField.WANDER / columns * sin(drift * (0.21f + 0.037f * (i % 5)) + i * 1.7f)
++        return lean(home + wander)
++    }
++
++    fun y(i: Int): Float {
++        val home = (i / columns + 0.5f) / rows
++        val wander = LivingField.WANDER / rows * cos(drift * (0.17f + 0.029f * (i % 7)) + i * 2.3f)
++        return lean(home + wander)
++    }
++
++    /** Pushed away from the middle on a kick and further on a drop, drawn in towards it by a build-up. */
++    private fun lean(at: Float) = 0.5f + (at - 0.5f) * push()
++
++    /**
++     * How far from the middle everything stands, against where it stands at rest: above 1 pushed
++     * out, below 1 drawn in.
++     */
++    fun push(): Float =
++        1f + min(LivingField.MOST_PUSH, reach * (LivingField.LEAN * shown[MusicLevels.BASS] + LivingField.BURST_PUSH * burst)) -
++            LivingField.GATHER_IN * reach * gathered
++
++    /** How far patch [i] is taken in a picture of the cover, 0 to 1: by the range it breathes with, and by the bass wherever it is. */
++    private fun taken(i: Int): Float {
++        val band = bands[i]
++        val charge = if (band == MusicLevels.HIGH) LivingField.GATHER_CHARGE * gathered else 0f
++        // a drop is everybody's, in full
++        return max(max(shown[band] * LivingField.SHARE[band] + charge, LivingField.KICK_EVERYWHERE * shown[MusicLevels.BASS]), burst)
++    }
++
++    fun radius(i: Int): Float {
++        val swell = if (separate) {
++            // each range swells what is its own, and the push of a kick is the bass's to show
++            sharesOf(i)
++            var sum = share[MusicLevels.BASS] * 0.08f * shown[MusicLevels.BASS]
++            for (band in 0 until MusicLevels.BANDS) {
++                sum += share[band] * LivingField.SWELL * LivingField.OWN_SWELL[band] * shown[band] * LivingField.OWN_SHARE[band]
++            }
++            // and a drop swells every patch, whoever's it is, as a kick does the bass's
++            sum + LivingField.SWELL * burst
++        } else {
++            LivingField.SWELL * taken(i) + 0.08f * shown[MusicLevels.BASS]
++        }
++        val ripple = 0.04f * sin(drift * 0.31f + i * (2f * PI.toFloat() / 5f))
++        val rest = if (separate) LivingField.FLOW_RADIUS else LivingField.REST_RADIUS
++        // bigger all the while a drop drives the song, smaller while it gathers for one
++        val grown = min(LivingField.MOST_SWELL, reach * (swell + LivingField.DRIVE_SWELL * driven))
++        return rest * (1f + grown + ripple - LivingField.GATHER_SHRINK * reach * gathered)
++    }
++
++    /** How much lighter or darker patch [i] is than the colour of its place, so that a ribbon is not one flat colour. */
++    fun grain(i: Int): Float = 0.97f + 0.015f * ((i % columns * 2 + i / columns) % 5)
++
++    /** Range [band]'s own colour as the music has it now: lighter on a beat, and more colourful with it. */
++    private fun mainNow(band: Int): Int {
++        val by = own(band)
++        val light = min(LivingField.MOST_LIGHT, LivingField.OWN_REST[band] + LivingField.FULL_LIGHT * LivingField.OWN_LIGHT[band] * by + flash())
++        return LivingField.lit(LivingField.colourful(colors[mainsAt + band], 1f + 0.18f * min(by, 3f)), light)
++    }
++
++    private val mainsNow = IntArray(MusicLevels.BANDS)
++
++    /** Lighter on a beat, and more colourful with it: light alone washes a colour out towards white. */
++    fun color(i: Int): Int {
++        if (separate) {
++            // The three colours as they are lit now, mixed by how much of this place is each
++            // range's, and a little lighter or darker from patch to patch so that a ribbon is
++            // not one flat colour.
++            for (band in 0 until MusicLevels.BANDS) mainsNow[band] = mainNow(band)
++            sharesOf(i)
++            return LivingField.lit(LivingField.mixed(mainsNow, 0, share), grain(i))
++        }
++        val by = reach * taken(i)
++        val light = min(LivingField.MOST_LIGHT, LivingField.REST_LIGHT + LivingField.FULL_LIGHT * by + flash())
++        return LivingField.lit(LivingField.colourful(colors[i], 1f + 0.18f * min(by, 3f)), light)
++    }
++
++    /** The light a drop throws over the whole picture, once. */
++    private fun flash(): Float = LivingField.BURST_LIGHT * reach * burst
++
++    /** The glow at the bottom edge: how tall it stands in parts of the height, and how strong it is, 0 to 1. */
++    fun glowHeight(): Float = 0.30f + min(0.5f, 0.25f * reach * (shown[MusicLevels.BASS] + burst))
++    fun glowStrength(): Float = min(1f, 0.05f + 0.43f * reach * (shown[MusicLevels.BASS] + burst))
++
++    // The aura's point [i]: its radius in parts of the cover's side, how strong it is from 0 to 1, its colour.
++
++    fun auraRadius(i: Int): Float =
++        min(LivingField.AURA_MOST, LivingField.AURA_REST + LivingField.AURA_SWELL * reach * auraShown[i])
++
++    fun auraStrength(i: Int): Float = auraPresence * min(1f, 0.30f + 0.40f * reach * auraShown[i])
++
++    fun auraColor(i: Int): Int {
++        val by = min(reach * auraShown[i], 3f)
++        val from = if (separate) {
++            sharesOfAura(i)
++            LivingField.mixed(colors, mainsAt, share)
++        } else {
++            colors[aura[i].patch]
++        }
++        return LivingField.lit(LivingField.colourful(from, 1.15f + 0.15f * by), min(LivingField.MOST_LIGHT, 1f + 0.30f * by))
++    }
++
++    companion object {
++        /**
++         * The picture moves in steps of this many to the second ([moveTo]): what a 120 Hz screen
++         * gave it while it took a step for every frame, and that is the screen it was looked at
++         * and tuned on.
++         */
++        const val STEPS_A_SECOND = 120
++        const val STEP_NANOS = 1_000_000_000L / STEPS_A_SECOND
++        const val STEP_SECONDS = 1f / STEPS_A_SECOND
++
++        /** The most time one frame makes up for, in nanoseconds: a tenth of a second, as in [step]. */
++        const val MOST_GAP_NANOS = 100_000_000L
++    }
++}
++
++/**
++ * Which of the screen's frames the picture is redrawn on.
++ *
++ * Redrawing it is dear, and not for what it is itself: everything drawn over it that looks through
++ * it (the glass panels) is redrawn with it, and so is the rest of the window. Redrawn on every
++ * frame of a 90 Hz screen, the player took most of a core more than it does over a still
++ * background (a Pixel 5, 12 Oct 2026). The picture is soft and slow and does not need that. So it
++ * is redrawn [MOST_A_SECOND] times a second at most, and on the frames between two redraws nothing
++ * of it is touched: no step taken, nothing drawn. It moves by the clock ([LivingMotion.moveTo]),
++ * so how often it is drawn does not change how fast it moves.
++ *
++ * The rule goes by the time since the last redraw and knows nothing about the screen: every
++ * second frame at 60 Hz, every third at 90, every fourth at 120, and every fifth at 144, which is
++ * 28.8 a second, the most that screen has under the limit. It was sixty a second and never less
++ * where the screen could do that, to have a kick drawn on its very frame. At thirty a kick can
++ * wait a thirtieth of a second for its frame.
++ */
++class RedrawPace {
++    private var shown = 0L
++
++    /**
++     * A frame of the screen's, at [nanos]: true when the picture is to be redrawn on it. Asked
++     * again about the same frame it answers the same, so that two pictures in one window (the
++     * player's, and the sample in Settings under it) share one pace and are redrawn on the same
++     * frames, not each on its own.
++     */
++    fun due(nanos: Long): Boolean {
++        val since = nanos - shown
++        if (shown != 0L && since > 0L && since < APART_NANOS) return false
++        shown = nanos
++        return true
++    }
++
++    companion object {
++        /** The most the picture is redrawn, in a second. */
++        const val MOST_A_SECOND = 30
++
++        /**
++         * Two redraws are at least this far apart, in nanoseconds: a thirtieth of a second less
++         * 2 ms, so that a frame which comes a hair early, or a screen that runs a little fast of
++         * its number, does not wait for the frame after.
++         */
++        const val APART_NANOS = 1_000_000_000L / MOST_A_SECOND - 2_000_000L
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 3cd96b0..f9f3463 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -140,6 +140,10 @@ import com.dd3boh.outertune.constants.DarkMode
+ import com.dd3boh.outertune.constants.DarkModeKey
+ import com.dd3boh.outertune.constants.PlayerLayoutKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
++import com.dd3boh.outertune.constants.LivingColours
++import com.dd3boh.outertune.constants.LivingColoursKey
++import com.dd3boh.outertune.constants.LivingSmoothingKey
++import com.dd3boh.outertune.constants.LivingStrengthKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.PLAYER_DEBUG
+ import com.dd3boh.outertune.constants.PlayerHorizontalPadding
+@@ -1743,6 +1747,29 @@ fun PlayerBackground(
+             )
+         }
+ 
++        if (playerBackground == PlayerBackgroundStyle.SIMPLE_REACTIVE) {
++            val isPlaying by playerConnection.isPlaying.collectAsState()
++            val strength by rememberPreference(LivingStrengthKey, defaultValue = LivingField.DEFAULT_STRENGTH)
++            val smoothing by rememberPreference(LivingSmoothingKey, defaultValue = LivingField.DEFAULT_SMOOTHING)
++            val colours by rememberEnumPreference(LivingColoursKey, defaultValue = LivingColours.MAIN)
++            LivingBackground(
++                cover = mediaMetadata?.getThumbnailModel(100, 100),
++                tap = playerConnection.service.levelTap,
++                playing = isPlaying,
++                onScreen = true,
++                strength = strength,
++                smoothing = smoothing,
++                colours = colours,
++                alpha = 0.9f,
++                modifier = Modifier.fillMaxSize()
++            )
++            Box(
++                Modifier
++                    .fillMaxSize()
++                    .background(if (useDarkTheme) Color.Black.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.55f))
++            )
++        }
++
+         if (playerBackground == PlayerBackgroundStyle.LIQUID) {
+             if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2d")
+             val isPlaying by playerConnection.isPlaying.collectAsState()
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+index ec3a03c..448f1ab 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+@@ -72,6 +72,8 @@ import com.dd3boh.outertune.constants.LiquidShapeStyleKey
+ import com.dd3boh.outertune.constants.LiquidTextContrastKey
+ import com.dd3boh.outertune.constants.PersistentQueueKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
++import com.dd3boh.outertune.constants.LivingColours
++import com.dd3boh.outertune.constants.LivingColoursKey
+ import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.SeekIncrement
+@@ -587,6 +589,7 @@ fun PlayerBackgroundFrag() {
+                 PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
+                 PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
+                 PlayerBackgroundStyle.FROSTED -> stringResource(R.string.player_background_frosted)
++                PlayerBackgroundStyle.SIMPLE_REACTIVE -> stringResource(R.string.player_background_simple_reactive)
+             }
+         },
+         values = availableBackgroundStyles
+@@ -606,6 +609,24 @@ fun PlayerBackgroundFrag() {
+         )
+     }
+ 
++    val (livingColours, onLivingColoursChange) =
++        rememberEnumPreference(LivingColoursKey, defaultValue = LivingColours.MAIN)
++    AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.SIMPLE_REACTIVE) {
++        EnumListPreference(
++            title = { Text(stringResource(R.string.simple_reactive_colours)) },
++            icon = { Icon(Icons.Rounded.Palette, null) },
++            selectedValue = livingColours,
++            onValueSelected = onLivingColoursChange,
++            valueText = {
++                when (it) {
++                    LivingColours.MAIN -> stringResource(R.string.simple_reactive_colours_main)
++                    LivingColours.COVER -> stringResource(R.string.simple_reactive_colours_cover)
++                }
++            },
++            values = LivingColours.entries,
++        )
++    }
++
+     val (liquidAudioReactive, onLiquidAudioReactiveChange) =
+         rememberPreference(LiquidAudioReactiveKey, defaultValue = true)
+     AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 1bd80ea..b2ab9d7 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -164,6 +164,10 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="player_background_default">Follow theme</string>
+     <string name="player_background_gradient">Gradient</string>
+     <string name="player_background_liquid">Liquid</string>
++    <string name="player_background_simple_reactive">Simple reactive</string>
++    <string name="simple_reactive_colours">Colours</string>
++    <string name="simple_reactive_colours_main">Cover's main colours</string>
++    <string name="simple_reactive_colours_cover">The cover itself</string>
+     <string name="player_background_style">Player background style</string>
+     <string name="player_background_frosted">Frosted glass</string>
+     <string name="player_auto_text_contrast_title">Auto contrast</string>
+-- 
+2.43.0
+
+From 6efc00004937c393e91dafd102c663636991694f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 10:34:41 +0800
+Subject: [PATCH 1/3] Port InterTune radio fixes: dotted song lengths and
+ signed-out account id
+
+parseTime reads 3.34 as well as 3:34 (Indonesian, Finnish, Danish), so radios and
+albums no longer drop songs in those languages. Requests name an account only when
+the cookie proves a sign-in, instead of failing radio starts with a 401.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../java/com/zionhuang/innertube/InnerTube.kt | 45 ++++++++++++-------
+ .../com/zionhuang/innertube/utils/Utils.kt    | 25 ++++++-----
+ 2 files changed, 41 insertions(+), 29 deletions(-)
+
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+index 4524922..a361ddd 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+@@ -39,6 +39,17 @@ class InnerTube {
+     )
+     var visitorData: String? = null
+     var dataSyncId: String? = null
++
++    /**
++     * The account a request is made on behalf of: [dataSyncId], but only while the cookie proves a
++     * sign-in. YouTube Music's page gives a signed-out visitor a DATASYNC_ID too, and a request
++     * that names one with no sign-in behind it is answered 401, which refuses every radio start.
++     * (From InterTune.)
++     */
++    val accountId: String?
++        get() = dataSyncId?.takeIf { id ->
++            id.isNotBlank() && cookie?.let { runCatching { "SAPISID" in parseCookieString(it) }.getOrDefault(false) } == true
++        }
+     var cookie: String? = null
+         set(value) {
+             // Validate before publishing so a parse failure cannot leave an invalid shared cookie.
+@@ -178,7 +189,7 @@ class InnerTube {
+                 context = client.toContext(
+                     locale,
+                     visitorData,
+-                    if (useLoginForBrowse) dataSyncId else null
++                    if (useLoginForBrowse) accountId else null
+                 ),
+                 query = query,
+                 params = params
+@@ -215,7 +226,7 @@ class InnerTube {
+         ytClient(client, setLogin = true, cookie = cookie, useWwwOrigin = useWwwOrigin)
+         setBody(
+             PlayerBody(
+-                context = client.toContext(locale, visitorData, dataSyncId).let {
++                context = client.toContext(locale, visitorData, accountId).let {
+                     if (client.isEmbedded) {
+                         it.copy(
+                             thirdParty = Context.ThirdParty(
+@@ -325,7 +336,7 @@ class InnerTube {
+                 context = client.toContext(
+                     locale.let { l -> gl?.let { l.copy(gl = it) } ?: l }.let { l -> hl?.let { l.copy(hl = it) } ?: l },
+                     visitorData,
+-                    if (setLogin || useLoginForBrowse) dataSyncId else null
++                    if (setLogin || useLoginForBrowse) accountId else null
+                 ),
+                 browseId = browseId,
+                 params = params,
+@@ -346,7 +357,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             NextBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 videoId = videoId,
+                 playlistId = playlistId,
+                 playlistSetVideoId = playlistSetVideoId,
+@@ -406,7 +417,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             LikeBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 target = LikeBody.Target.VideoTarget(videoId)
+             )
+         )
+@@ -419,7 +430,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             LikeBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 target = LikeBody.Target.VideoTarget(videoId)
+             )
+         )
+@@ -432,7 +443,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             SubscribeBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 channelIds = listOf(channelId)
+             )
+         )
+@@ -445,7 +456,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             SubscribeBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 channelIds = listOf(channelId)
+             )
+         )
+@@ -458,7 +469,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             LikeBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 target = LikeBody.Target.PlaylistTarget(playlistId)
+             )
+         )
+@@ -471,7 +482,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             LikeBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 target = LikeBody.Target.PlaylistTarget(playlistId)
+             )
+         )
+@@ -485,7 +496,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             EditPlaylistBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 playlistId = playlistId.removePrefix("VL"),
+                 actions = listOf(
+                     Action.AddVideoAction(addedVideoId = videoId)
+@@ -502,7 +513,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             EditPlaylistBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 playlistId = playlistId.removePrefix("VL"),
+                 actions = listOf(
+                     Action.AddPlaylistAction(addedFullListId = addPlaylistId)
+@@ -520,7 +531,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             EditPlaylistBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 playlistId = playlistId.removePrefix("VL"),
+                 actions = listOf(
+                     Action.RemoveVideoAction(
+@@ -541,7 +552,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             EditPlaylistBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 playlistId = playlistId,
+                 actions = listOf(
+                     Action.MoveVideoAction(
+@@ -561,7 +572,7 @@ class InnerTube {
+         ytClient(client, true)
+         setBody(
+             CreatePlaylistBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 title = title
+             )
+         )
+@@ -575,7 +586,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             EditPlaylistBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 playlistId = playlistId,
+                 actions = listOf(
+                     Action.RenamePlaylistAction(
+@@ -593,7 +604,7 @@ class InnerTube {
+         ytClient(client, setLogin = true)
+         setBody(
+             PlaylistDeleteBody(
+-                context = client.toContext(locale, visitorData, dataSyncId),
++                context = client.toContext(locale, visitorData, accountId),
+                 playlistId = playlistId
+             )
+         )
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/utils/Utils.kt b/innertube/src/main/java/com/zionhuang/innertube/utils/Utils.kt
+index 8b44a6e..55fc6f9 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/utils/Utils.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/utils/Utils.kt
+@@ -51,19 +51,20 @@ fun parseCookieString(cookie: String): Map<String, String> =
+             key to value
+         }
+ 
++/**
++ * A length as YouTube writes it, in seconds: "3:34", or "3.34" in the languages that put a dot
++ * there (Indonesian, Finnish and Danish, 5 Nov 2026), and "1:02:03" with hours. Only colons were
++ * read, and a radio's songs whose length cannot be read are left out, so in those languages a
++ * radio stopped after its first song (#83). Anything else, views or a year, is null.
++ */
+ fun String.parseTime(): Int? {
+-    try {
+-        val parts = split(":").map { it.toInt() }
+-        if (parts.size == 2) {
+-            return parts[0] * 60 + parts[1]
+-        }
+-        if (parts.size == 3) {
+-            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+-        }
+-    } catch (e: Exception) {
+-        return null
+-    }
+-    return null
++    val parts = trim().split(':', '.')
++    if (parts.size !in 2..3 || parts.any { part -> part.isEmpty() || !part.all { it.isDigit() } }) return null
++    // Minutes and seconds after the first part are always two digits and under 60.
++    if (parts.drop(1).any { it.length != 2 }) return null
++    val numbers = parts.map { it.toIntOrNull() ?: return null }
++    if (numbers.drop(1).any { it >= 60 }) return null
++    return numbers.fold(0) { total, part -> total * 60 + part }
+ }
+ 
+ fun isPrivateId(browseId: String): Boolean {
+-- 
+2.43.0
+
+
+From 722dbcaa4932a81a7a92b879717db447649846b8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 10:34:54 +0800
+Subject: [PATCH 2/3] Radio pages add only songs the queue has not already had
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/playback/queues/YouTubeQueue.kt | 31 ++++++++++++++-----
+ 1 file changed, 23 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/queues/YouTubeQueue.kt b/app/src/main/java/com/dd3boh/outertune/playback/queues/YouTubeQueue.kt
+index 3e0ddcd..cbd6e59 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/queues/YouTubeQueue.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/queues/YouTubeQueue.kt
+@@ -15,15 +15,23 @@ class YouTubeQueue(
+     private var continuation: String? = null,
+ ) : Queue {
+ 
++    /**
++     * Ids of every song this queue has handed out. A radio's next page is asked from a song in the
++     * queue, so much of it is the queue again; only what is new is appended (from InterTune).
++     */
++    private val seen = HashSet<String>()
++
+     override suspend fun getInitialStatus(): Queue.Status {
+         val nextResult = withContext(IO) {
+             YouTube.next(endpoint, continuation).getOrThrow()
+         }
+         endpoint = nextResult.endpoint
+         continuation = nextResult.continuation
++        val initial = nextResult.items.map { it.toMediaMetadata() }
++        initial.forEach { seen.add(it.id) }
+         return Queue.Status(
+             title = nextResult.title,
+-            items = nextResult.items.map { it.toMediaMetadata() },
++            items = initial,
+             mediaItemIndex = nextResult.currentIndex ?: 0
+         )
+     }
+@@ -31,14 +39,19 @@ class YouTubeQueue(
+     override fun hasNextPage(): Boolean = continuation != null
+ 
+     override suspend fun nextPage(): List<MediaMetadata> {
+-        val nextResult = withContext(IO) {
+-            YouTube.next(endpoint, continuation).getOrNull()
++        // A page with nothing new is not the end: ask again from where it moved on to, a few times.
++        repeat(MAX_EMPTY_PAGES) {
++            val nextResult = withContext(IO) {
++                YouTube.next(endpoint, continuation).getOrNull()
++            }
++            if (nextResult != null) {
++                endpoint = nextResult.endpoint
++            }
++            continuation = nextResult?.continuation
++            val fresh = nextResult?.items?.map { it.toMediaMetadata() }?.filter { seen.add(it.id) }.orEmpty()
++            if (fresh.isNotEmpty() || continuation == null) return fresh
+         }
+-        if (nextResult != null) {
+-            endpoint = nextResult.endpoint
+-        }
+-        continuation = nextResult?.continuation
+-        return nextResult?.items?.map { it.toMediaMetadata() } ?: emptyList()
++        return emptyList()
+     }
+ 
+ //    fun getContinuationEndpoint(): String? {
+@@ -50,6 +63,8 @@ class YouTubeQueue(
+ //    }
+ 
+     companion object {
++        private const val MAX_EMPTY_PAGES = 3
++
+         fun radio(song: MediaMetadata) = YouTubeQueue(WatchEndpoint(song.id), song)
+     }
+ }
+-- 
+2.43.0
+
+
+From 0eeff7214979b8dc9a67b766fac27af17e743f81 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 10:35:31 +0800
+Subject: [PATCH 3/3] Widget lyrics: a new line slides up into place in stages
+ instead of jumping
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 10 ++++++++
+ .../dd3boh/outertune/widget/WidgetLyrics.kt   | 23 ++++++++++++++++---
+ app/src/main/res/layout/widget_el_lyrics.xml  |  1 +
+ 3 files changed, 31 insertions(+), 3 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index b6e8626..b396a87 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -179,6 +179,9 @@ object PlayerWidget {
+ 
+     /** How many characters the sweep's soft edge spans. */
+     private const val SWEEP_SOFT_CHARS = 2f
++
++    /** How far a new lyric line slides, in dp - see [WidgetLyrics.LINE_STEPS]. */
++    private const val SLIDE_DP = 14
+     private const val BG_LONG_PX = 480
+     private const val ICON_PX = 80
+ 
+@@ -579,6 +582,13 @@ object PlayerWidget {
+                         paint(lit, length, faint)
+                     }
+                 }
++                // A new line slides up into place in a few stages: the whole column starts lower and
++                // rises, its total height kept so only its position changes. Padding is what a
++                // RemoteViews can change on any Android version.
++                val step = frame?.lineStep ?: -1
++                val slide = (SLIDE_DP * context.resources.displayMetrics.density).roundToInt()
++                val down = if (step >= 0) (slide * (1f - (step + 1f) / WidgetLyrics.LINE_STEPS)).roundToInt() else 0
++                setViewPadding(R.id.el_lyrics_root, 0, down, 0, slide - down)
+                 setTextViewText(R.id.el_text, current)
+                 setTextColor(R.id.el_text, colours.text)
+                 setTextViewText(R.id.el_prev, frame?.previous.orEmpty())
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+index 6032f0d..c934215 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+@@ -40,11 +40,17 @@ object WidgetLyrics {
+         val wordFrom: Int = 0,
+         val wordTo: Int = 0,
+         val wordStep: Int = -1,
++        /** While the line has just begun: which of [LINE_STEPS] stages its slide up into place is at, else -1. */
++        val lineStep: Int = -1,
+     )
+ 
+     /** How many stages a word is lit in - the widget redraws once per stage, no finer. */
+     const val STEPS = 8
+ 
++    /** How long a new line takes to slide up into place, and in how many stages (a widget cannot animate, it can only be redrawn). */
++    const val LINE_MS = 400L
++    const val LINE_STEPS = 5
++
+     /**
+      * How far ahead the lit words run: about how long a redraw takes to get through the launcher, so
+      * a word lights on time rather than just after it is sung.
+@@ -100,20 +106,24 @@ object WidgetLyrics {
+         val line = lines[index]
+         val previous = lines.getOrNull(index - 1)?.text
+         val next = lines.getOrNull(index + 1)?.text
+-        if (line.words.isEmpty()) return Frame(previous, line.text, line.text.length, next)
++        val lineStep = if (smooth && index > 0) lineStepAt(positionMs - line.start) else -1
++        if (line.words.isEmpty()) return Frame(previous, line.text, line.text.length, next, lineStep = lineStep)
+         val at = positionMs + LEAD_MS
+         val active = line.words.firstOrNull { it.startMs <= at && at < it.endMs }
+         return if (active != null && smooth) {
+             val lit = line.words.lastOrNull { it.endMs <= at }?.endChar ?: 0
+             val step = ((at - active.startMs) * STEPS / (active.endMs - active.startMs)).toInt().coerceIn(0, STEPS - 1)
+-            Frame(previous, line.text, lit, next, active.startChar, active.endChar, step)
++            Frame(previous, line.text, lit, next, active.startChar, active.endChar, step, lineStep)
+         } else {
+             // Not smooth: a word is lit whole from its start.
+             val lit = line.words.lastOrNull { it.startMs <= at }?.endChar ?: 0
+-            Frame(previous, line.text, lit, next)
++            Frame(previous, line.text, lit, next, lineStep = lineStep)
+         }
+     }
+ 
++    private fun lineStepAt(sinceStartMs: Long): Int =
++        if (sinceStartMs in 0 until LINE_MS) (sinceStartMs * LINE_STEPS / LINE_MS).toInt().coerceIn(0, LINE_STEPS - 1) else -1
++
+     /**
+      * How long until the widget next needs redrawing for [positionMs]: the next stage of the word
+      * being sung ([smooth]), the next word, or the next line, whichever is first. Redrawing on a
+@@ -122,6 +132,13 @@ object WidgetLyrics {
+     fun nextChangeDelay(lines: List<Line>, positionMs: Long, smooth: Boolean = true): Long {
+         val index = lines.indexOfLast { it.start <= positionMs }
+         var next = lines.getOrNull(index + 1)?.start?.minus(positionMs) ?: Long.MAX_VALUE
++        if (index > 0 && smooth) {
++            val since = positionMs - lines[index].start
++            if (since in 0 until LINE_MS) {
++                val stepMs = LINE_MS / LINE_STEPS
++                next = minOf(next, (since / stepMs + 1) * stepMs - since)
++            }
++        }
+         if (index >= 0) {
+             val at = positionMs + LEAD_MS
+             val words = lines[index].words
+diff --git a/app/src/main/res/layout/widget_el_lyrics.xml b/app/src/main/res/layout/widget_el_lyrics.xml
+index cd8c958..4064b7d 100644
+--- a/app/src/main/res/layout/widget_el_lyrics.xml
++++ b/app/src/main/res/layout/widget_el_lyrics.xml
+@@ -2,6 +2,7 @@
+ <!-- The lyrics piece: the line before, the line being sung (its sung words lit), the line after -
+      the Windows mini player's look. Filled in by PlayerWidget from WidgetLyrics.Frame. -->
+ <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_lyrics_root"
+     android:layout_width="0dp"
+     android:layout_height="wrap_content"
+     android:layout_marginVertical="2dp"
 -- 
 2.43.0
 
