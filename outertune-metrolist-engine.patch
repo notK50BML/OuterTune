@@ -272592,3 +272592,30 @@ index bbba72a..920c0f2 100644
 -- 
 2.43.0
 
+From 3fd6086a13929d77938168d97cc6bc1f4c8c97f6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 18:50:10 +0800
+Subject: [PATCH] Widget lyrics style preference: EnumListPreference needs its
+ icon argument
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+index bbfe850..58883cf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+@@ -263,6 +263,7 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
+             val (lyricsStyle, onLyricsStyle) = rememberEnumPreference(WidgetLyricsStyleKey, WidgetLyricsStyle.FOLLOW)
+             EnumListPreference(
+                 title = { Text(stringResource(R.string.widget_lyrics_style)) },
++                icon = null,
+                 selectedValue = lyricsStyle,
+                 onValueSelected = onLyricsStyle,
+                 values = WidgetLyricsStyle.entries,
+-- 
+2.43.0
+
