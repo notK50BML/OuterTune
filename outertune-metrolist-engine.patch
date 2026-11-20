@@ -274169,3 +274169,1136 @@ index 6f0392c..888576c 100644
 -- 
 2.43.0
 
+From cc4df1cc9b2463c3d72240ed0a84ec50a8795312 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 20 Nov 2026 19:12:00 +0800
+Subject: [PATCH] Tickable, reorderable icons beside and in the search field;
+ replace the identify button placement
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/constants/PreferenceKeys.kt     |   6 +
+ .../outertune/ui/component/ShortcutIcons.kt   | 147 ++++++++++++++++++
+ .../outertune/ui/screens/HomeShortcutIcons.kt |  36 ++---
+ .../ui/screens/search/SearchScreen.kt         |  66 ++------
+ .../ui/screens/settings/SettingsIndex.kt      |   3 +-
+ .../settings/fragments/InterfaceFrag.kt       |  58 +++++--
+ app/src/main/res/values/strings-ot.xml        |   7 +-
+ 7 files changed, 224 insertions(+), 99 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index cba6474..3067a33 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -727,3 +727,9 @@ val StatSongLimitKey = intPreferencesKey("statSongLimit")
+ 
+ /** Sources (`|`-separated) the AutoEQ headphone search looks in. */
+ val AutoEqSourcesKey = stringPreferencesKey("autoEqSources")
++
++/** Icons beside the search field on Home, comma separated in order (see ShortcutIcon). */
++val SearchBesideIconsKey = stringPreferencesKey("searchBesideIcons")
++
++/** Icons inside the search field once it is clicked into, comma separated in order. */
++val SearchInFieldIconsKey = stringPreferencesKey("searchInFieldIcons")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
+new file mode 100644
+index 0000000..035479c
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
+@@ -0,0 +1,147 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.component
++
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.itemsIndexed
++import androidx.compose.foundation.lazy.rememberLazyListState
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.TrendingUp
++import androidx.compose.material.icons.rounded.DragHandle
++import androidx.compose.material.icons.rounded.Group
++import androidx.compose.material.icons.rounded.History
++import androidx.compose.material.icons.rounded.Mic
++import androidx.compose.material.icons.rounded.Person
++import androidx.compose.material.icons.rounded.Settings
++import androidx.compose.material3.Checkbox
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.mutableStateListOf
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.vector.ImageVector
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import androidx.navigation.NavController
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.ui.dialog.ActionPromptDialog
++import sh.calvin.reorderable.ReorderableItem
++import sh.calvin.reorderable.rememberReorderableLazyListState
++
++/**
++ * The buttons that can sit on the top of Home and in the search field. One set serves both places,
++ * and the user picks which are shown and in what order for each (see [parseShortcutIcons]).
++ */
++enum class ShortcutIcon(val id: String, val icon: ImageVector, val label: Int, val route: String) {
++    RECOGNIZE("recognize", Icons.Rounded.Mic, R.string.recognition, "recognition"),
++    LISTEN_TOGETHER("listen_together", Icons.Rounded.Group, R.string.lt_title, "settings/listen_together"),
++    STATS("stats", Icons.AutoMirrored.Rounded.TrendingUp, R.string.stats, "stats"),
++    HISTORY("history", Icons.Rounded.History, R.string.history, "history"),
++    SETTINGS("settings", Icons.Rounded.Settings, R.string.settings, "settings"),
++    ACCOUNT("account", Icons.Rounded.Person, R.string.account, "settings/account_sync"),
++}
++
++/** What was always beside the search field. */
++const val DEFAULT_BESIDE_SEARCH_ICONS = "stats,settings,account"
++
++/** What was always inside it, when it is open: the identify button. */
++const val DEFAULT_IN_SEARCH_ICONS = "recognize"
++
++/** The icons named in [stored], in that order. Unknown names are skipped, and none is a real "none". */
++fun parseShortcutIcons(stored: String): List<ShortcutIcon> =
++    stored.split(',').mapNotNull { id -> ShortcutIcon.entries.find { it.id == id.trim() } }.distinct()
++
++/** One button for [icon], going where it goes. */
++@Composable
++fun ShortcutIconButton(icon: ShortcutIcon, navController: NavController) {
++    IconButton(onClick = { navController.navigate(icon.route) }) {
++        if (icon == ShortcutIcon.ACCOUNT) {
++            AccountAvatar(contentDescription = stringResource(icon.label)) {
++                Icon(icon.icon, contentDescription = stringResource(icon.label))
++            }
++        } else {
++            Icon(icon.icon, contentDescription = stringResource(icon.label))
++        }
++    }
++}
++
++/** The chosen icons side by side. */
++@Composable
++fun ShortcutIconRow(stored: String, navController: NavController, modifier: Modifier = Modifier) {
++    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
++        parseShortcutIcons(stored).forEach { ShortcutIconButton(it, navController) }
++    }
++}
++
++/**
++ * Tick which icons show and drag them into order. The ones ticked, in the order shown, are what
++ * [onConfirm] gets, as the comma separated string that [parseShortcutIcons] reads.
++ */
++@Composable
++fun ShortcutIconsDialog(
++    title: String,
++    stored: String,
++    default: String,
++    onConfirm: (String) -> Unit,
++    onDismiss: () -> Unit,
++) {
++    val chosen = remember { parseShortcutIcons(stored) }
++    val order = remember { mutableStateListOf<ShortcutIcon>().apply { addAll(chosen + ShortcutIcon.entries.filter { it !in chosen }) } }
++    val ticked = remember { mutableStateListOf<ShortcutIcon>().apply { addAll(chosen) } }
++    val listState = rememberLazyListState()
++    val reorderState = rememberReorderableLazyListState(lazyListState = listState) { from, to ->
++        order.add(to.index, order.removeAt(from.index))
++    }
++
++    ActionPromptDialog(
++        title = title,
++        onDismiss = onDismiss,
++        onConfirm = {
++            onConfirm(order.filter { it in ticked }.joinToString(",") { it.id })
++            onDismiss()
++        },
++        onReset = {
++            val d = parseShortcutIcons(default)
++            order.clear(); order.addAll(d + ShortcutIcon.entries.filter { it !in d })
++            ticked.clear(); ticked.addAll(d)
++        },
++        onCancel = onDismiss,
++    ) {
++        LazyColumn(state = listState, modifier = Modifier.padding(vertical = 12.dp)) {
++            itemsIndexed(order, key = { _, item -> item.id }) { _, item ->
++                ReorderableItem(state = reorderState, key = item.id) {
++                    Row(
++                        horizontalArrangement = Arrangement.SpaceBetween,
++                        verticalAlignment = Alignment.CenterVertically,
++                        modifier = Modifier.padding(start = 4.dp, end = 12.dp).fillMaxWidth()
++                    ) {
++                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
++                            Checkbox(
++                                checked = item in ticked,
++                                onCheckedChange = { on -> if (on) ticked.add(item) else ticked.remove(item) },
++                            )
++                            Icon(item.icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
++                            Spacer(Modifier.width(12.dp))
++                            Text(stringResource(item.label))
++                        }
++                        Icon(Icons.Rounded.DragHandle, null, modifier = Modifier.draggableHandle())
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
+index b97fac5..3616c9e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
+@@ -6,38 +6,22 @@
+ 
+ package com.dd3boh.outertune.ui.screens
+ 
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.material.icons.Icons
+-import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+-import androidx.compose.material.icons.rounded.Person
+-import androidx.compose.material.icons.rounded.Settings
+-import androidx.compose.material3.Icon
+-import androidx.compose.material3.IconButton
+ import androidx.compose.runtime.Composable
+-import androidx.compose.ui.Alignment
++import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.res.stringResource
+ import androidx.navigation.NavController
+-import com.dd3boh.outertune.R
+-import com.dd3boh.outertune.ui.component.AccountAvatar
++import com.dd3boh.outertune.constants.SearchBesideIconsKey
++import com.dd3boh.outertune.ui.component.DEFAULT_BESIDE_SEARCH_ICONS
++import com.dd3boh.outertune.ui.component.ShortcutIconRow
++import com.dd3boh.outertune.utils.rememberPreference
+ 
+ /**
+- * Stats, Settings and Account, for the end of Home's chips row when the Search tab is on - the
+- * search bar they normally share a row with is gone then, and they still need somewhere to live.
++ * The icons chosen for beside the search field, for the end of Home's chips row when the Search tab
++ * is on - the search bar they normally share a row with is gone then, and they still need somewhere
++ * to live.
+  */
+ @Composable
+ fun HomeShortcutIcons(navController: NavController, modifier: Modifier = Modifier) {
+-    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
+-        IconButton(onClick = { navController.navigate("stats") }) {
+-            Icon(Icons.AutoMirrored.Rounded.TrendingUp, contentDescription = stringResource(R.string.stats))
+-        }
+-        IconButton(onClick = { navController.navigate("settings") }) {
+-            Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.settings))
+-        }
+-        IconButton(onClick = { navController.navigate("settings/account_sync") }) {
+-            AccountAvatar(contentDescription = stringResource(R.string.account)) {
+-                Icon(Icons.Rounded.Person, contentDescription = stringResource(R.string.account))
+-            }
+-        }
+-    }
++    val stored by rememberPreference(SearchBesideIconsKey, defaultValue = DEFAULT_BESIDE_SEARCH_ICONS)
++    ShortcutIconRow(stored, navController, modifier)
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index 1a0f38e..e647e08 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -81,8 +81,12 @@ import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
+ import com.dd3boh.outertune.constants.EnabledTabsKey
+ import com.dd3boh.outertune.constants.ShowTopBarLogoKey
+ import com.dd3boh.outertune.constants.PauseSearchHistoryKey
+-import com.dd3boh.outertune.constants.RecognitionButtonPlacement
+-import com.dd3boh.outertune.constants.RecognitionButtonPlacementKey
++import com.dd3boh.outertune.constants.SearchBesideIconsKey
++import com.dd3boh.outertune.constants.SearchInFieldIconsKey
++import com.dd3boh.outertune.ui.component.DEFAULT_BESIDE_SEARCH_ICONS
++import com.dd3boh.outertune.ui.component.DEFAULT_IN_SEARCH_ICONS
++import com.dd3boh.outertune.ui.component.ShortcutIconButton
++import com.dd3boh.outertune.ui.component.parseShortcutIcons
+ import com.dd3boh.outertune.constants.SearchSource
+ import com.dd3boh.outertune.constants.SearchSourceKey
+ import com.dd3boh.outertune.constants.UpdateAvailableKey
+@@ -121,10 +125,8 @@ fun SearchBarContainer(
+ 
+     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
+     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
+-    val recognizePlacement by rememberEnumPreference(
+-        RecognitionButtonPlacementKey,
+-        RecognitionButtonPlacement.SEARCH_FIELD
+-    )
++    val besideIcons by rememberPreference(SearchBesideIconsKey, defaultValue = DEFAULT_BESIDE_SEARCH_ICONS)
++    val inFieldIcons by rememberPreference(SearchInFieldIconsKey, defaultValue = DEFAULT_IN_SEARCH_ICONS)
+     val updateAvailable by rememberPreference(UpdateAvailableKey, defaultValue = false)
+     val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = false)
+ 
+@@ -309,14 +311,7 @@ fun SearchBarContainer(
+                             )
+                         }
+                     }
+-                    if (recognizePlacement == RecognitionButtonPlacement.SEARCH_FIELD) {
+-                        IconButton(onClick = { navController.navigate("recognition") }) {
+-                            Icon(
+-                                imageVector = Icons.Rounded.Mic,
+-                                contentDescription = stringResource(R.string.recognition)
+-                            )
+-                        }
+-                    }
++                    parseShortcutIcons(inFieldIcons).forEach { ShortcutIconButton(it, navController) }
+                     IconButton(
+                         onClick = {
+                             searchSource =
+@@ -411,11 +406,8 @@ fun SearchBarContainer(
+             scrollBehavior = scrollBehavior,
+             windowInsets = iconRowInset,
+             showLogo = showTopBarLogo,
+-            showRecognize = recognizePlacement == RecognitionButtonPlacement.TOP_BAR,
+-            onRecognizeClick = { navController.navigate("recognition") },
+-            onStatsClick = { navController.navigate("stats") },
+-            onSettingsClick = { navController.navigate("settings") },
+-            onAccountClick = { navController.navigate("settings/account_sync") },
++            icons = besideIcons,
++            navController = navController,
+             onSearchClick = { onSearchActiveChange(true) },
+         )
+     }
+@@ -427,11 +419,8 @@ private fun TopIconBar(
+     scrollBehavior: TopAppBarScrollBehavior,
+     windowInsets: WindowInsets,
+     showLogo: Boolean,
+-    showRecognize: Boolean,
+-    onRecognizeClick: () -> Unit,
+-    onStatsClick: () -> Unit,
+-    onSettingsClick: () -> Unit,
+-    onAccountClick: () -> Unit,
++    icons: String,
++    navController: NavController,
+     onSearchClick: () -> Unit,
+ ) {
+     val heightOffsetLimit = with(LocalDensity.current) {
+@@ -499,33 +488,6 @@ private fun TopIconBar(
+         }
+         Spacer(Modifier.width(4.dp))
+ 
+-        if (showRecognize) {
+-            IconButton(onClick = onRecognizeClick) {
+-                Icon(
+-                    imageVector = Icons.Rounded.Mic,
+-                    contentDescription = stringResource(R.string.recognition)
+-                )
+-            }
+-        }
+-        IconButton(onClick = onStatsClick) {
+-            Icon(
+-                imageVector = Icons.AutoMirrored.Rounded.TrendingUp,
+-                contentDescription = stringResource(R.string.stats)
+-            )
+-        }
+-        IconButton(onClick = onSettingsClick) {
+-            Icon(
+-                imageVector = Icons.Rounded.Settings,
+-                contentDescription = stringResource(R.string.settings)
+-            )
+-        }
+-        IconButton(onClick = onAccountClick) {
+-            AccountAvatar(contentDescription = stringResource(R.string.account)) {
+-                Icon(
+-                    imageVector = Icons.Rounded.Person,
+-                    contentDescription = stringResource(R.string.account)
+-                )
+-            }
+-        }
++        parseShortcutIcons(icons).forEach { ShortcutIconButton(it, navController) }
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+index b7dccbc..c970927 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+@@ -97,7 +97,8 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/appearance", R.string.player_auto_text_contrast_title, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance/widget", R.string.widget_layout_title, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.default_open_tab, R.string.grp_appearance_controls),
+-    SettingsIndexEntry("settings/appearance", R.string.recognition_placement_title, R.string.grp_appearance_controls),
++    SettingsIndexEntry("settings/appearance", R.string.search_icons_beside_title, R.string.grp_appearance_controls),
++    SettingsIndexEntry("settings/appearance", R.string.search_icons_in_title, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.tab_arrangement, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.filter_arrangement, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.enable_dynamic_theme, R.string.grp_appearance_controls),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
+index 1b365b4..8a4baa9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
+@@ -61,8 +61,12 @@ import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.dialog.ActionPromptDialog
+ import com.dd3boh.outertune.ui.dialog.InfoLabel
+-import com.dd3boh.outertune.constants.RecognitionButtonPlacement
+-import com.dd3boh.outertune.constants.RecognitionButtonPlacementKey
++import com.dd3boh.outertune.constants.SearchBesideIconsKey
++import com.dd3boh.outertune.constants.SearchInFieldIconsKey
++import com.dd3boh.outertune.ui.component.DEFAULT_BESIDE_SEARCH_ICONS
++import com.dd3boh.outertune.ui.component.DEFAULT_IN_SEARCH_ICONS
++import com.dd3boh.outertune.ui.component.ShortcutIconsDialog
++import com.dd3boh.outertune.ui.component.parseShortcutIcons
+ import com.dd3boh.outertune.ui.screens.Screens
+ import com.dd3boh.outertune.ui.screens.Screens.LibraryFilter
+ import com.dd3boh.outertune.utils.rememberEnumPreference
+@@ -383,8 +387,13 @@ fun ColumnScope.TabArrangementFrag() {
+ fun ColumnScope.TabExtrasFrag() {
+     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
+     val (defaultOpenTab, onDefaultOpenTabChange) = rememberPreference(DefaultOpenTabKey, defaultValue = "home")
+-    val (recognizePlacement, onRecognizePlacementChange) =
+-        rememberEnumPreference(RecognitionButtonPlacementKey, RecognitionButtonPlacement.SEARCH_FIELD)
++    val (besideIcons, onBesideIconsChange) = rememberPreference(SearchBesideIconsKey, defaultValue = DEFAULT_BESIDE_SEARCH_ICONS)
++    val (inFieldIcons, onInFieldIconsChange) = rememberPreference(SearchInFieldIconsKey, defaultValue = DEFAULT_IN_SEARCH_ICONS)
++    var showBesideDialog by remember { mutableStateOf(false) }
++    var showInFieldDialog by remember { mutableStateOf(false) }
++    @Composable
++    fun names(stored: String) = parseShortcutIcons(stored).joinToString(", ") { stringResource(it.label) }
++        .ifEmpty { stringResource(R.string.search_icons_none) }
+ 
+     ListPreference(
+         title = { Text(stringResource(R.string.default_open_tab)) },
+@@ -396,20 +405,37 @@ fun ColumnScope.TabExtrasFrag() {
+         values = Screens.getAllScreens().filter { Screens.getScreens(enabledTabs).contains(it) },
+         valueText = { stringResource(it.titleId) }
+     )
+-    EnumListPreference(
+-        title = { Text(stringResource(R.string.recognition_placement_title)) },
++    PreferenceEntry(
++        title = { Text(stringResource(R.string.search_icons_beside_title)) },
++        description = names(besideIcons),
++        icon = { Icon(Icons.Rounded.Reorder, null) },
++        onClick = { showBesideDialog = true }
++    )
++    PreferenceEntry(
++        title = { Text(stringResource(R.string.search_icons_in_title)) },
++        description = names(inFieldIcons),
+         icon = { Icon(Icons.Rounded.Mic, null) },
+-        selectedValue = recognizePlacement,
+-        onValueSelected = onRecognizePlacementChange,
+-        values = RecognitionButtonPlacement.entries,
+-        valueText = {
+-            when (it) {
+-                RecognitionButtonPlacement.TOP_BAR -> stringResource(R.string.recognition_placement_top_bar)
+-                RecognitionButtonPlacement.SEARCH_FIELD -> stringResource(R.string.recognition_placement_search_field)
+-                RecognitionButtonPlacement.HIDDEN -> stringResource(R.string.recognition_placement_hidden)
+-            }
+-        }
++        onClick = { showInFieldDialog = true }
+     )
++    if (showBesideDialog) {
++        ShortcutIconsDialog(
++            title = stringResource(R.string.search_icons_beside_title),
++            stored = besideIcons,
++            default = DEFAULT_BESIDE_SEARCH_ICONS,
++            onConfirm = onBesideIconsChange,
++            onDismiss = { showBesideDialog = false },
++        )
++    }
++    if (showInFieldDialog) {
++        ShortcutIconsDialog(
++            title = stringResource(R.string.search_icons_in_title),
++            stored = inFieldIcons,
++            default = DEFAULT_IN_SEARCH_ICONS,
++            onConfirm = onInFieldIconsChange,
++            onDismiss = { showInFieldDialog = false },
++        )
++    }
++}
+ }
+ 
+ @Composable
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 37e6249..728db04 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -315,10 +315,9 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="lyrics_karaoke_hz_title">Word highlight update speed</string>
+     <string name="lyrics_multiline_title">Read multiline lyrics</string>
+     <string name="lyrics_multiline_description">Treat lines between sync points as one</string>
+-    <string name="recognition_placement_title">Identify a song button</string>
+-    <string name="recognition_placement_top_bar">Top of the home screen</string>
+-    <string name="recognition_placement_search_field">In the search field</string>
+-    <string name="recognition_placement_hidden">Hidden</string>
++    <string name="search_icons_beside_title">Icons beside the search field</string>
++    <string name="search_icons_in_title">Icons in the search field</string>
++    <string name="search_icons_none">None</string>
+     <string name="lyrics_fetch_mode_title">Provider selection</string>
+     <string name="lyrics_fetch_mode_auto">Automatic (fastest)</string>
+     <string name="lyrics_fetch_mode_manual">In my order</string>
+-- 
+2.43.0
+
+From ffa9d4f35559ab03ae2dbe31b7b9e2218d71fca0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 20 Nov 2026 19:17:40 +0800
+Subject: [PATCH] Liquid glass: joined mini player and tabs panel, top bar
+ pill, Appearance settings
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ app/build.gradle.kts                          |   1 +
+ .../java/com/dd3boh/outertune/MainActivity.kt |  59 ++++++++-
+ .../outertune/constants/PreferenceKeys.kt     |   6 +
+ .../outertune/ui/component/BottomSheet.kt     |  36 ++++-
+ .../outertune/ui/dialog/LiquidGlassDialog.kt  |  88 ++++++++++++
+ .../dd3boh/outertune/ui/player/MiniPlayer.kt  |  14 +-
+ .../com/dd3boh/outertune/ui/player/Player.kt  |   5 +-
+ .../ui/screens/search/SearchScreen.kt         |  11 +-
+ .../ui/screens/settings/AppearanceSettings.kt |  16 +++
+ .../outertune/ui/utils/GlassBackdrop.kt       | 125 ++++++++++++++++++
+ app/src/main/res/values/strings-ot.xml        |   7 +
+ gradle/libs.versions.toml                     |   2 +
+ 12 files changed, 358 insertions(+), 12 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/dialog/LiquidGlassDialog.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/utils/GlassBackdrop.kt
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index c998815..851e30f 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -334,6 +334,7 @@ dependencies {
+ 
+     // local metadata tag extraction (TagLib, all flavors)
+     implementation(libs.taglib)
++    implementation(libs.kyant.backdrop)
+ 
+     // sdk24 support
+     // Support for N is officially unsupported even it the app should still work. Leave this outside of the version catalog.
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 02237d8..2831b24 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -72,6 +72,7 @@ import androidx.compose.material3.Icon
+ import androidx.compose.material3.LocalContentColor
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.NavigationBar
++import androidx.compose.material3.NavigationBarDefaults
+ import androidx.compose.material3.NavigationBarItem
+ import androidx.compose.material3.NavigationRail
+ import androidx.compose.material3.NavigationRailItem
+@@ -138,6 +139,20 @@ import com.dd3boh.outertune.constants.MinMiniPlayerHeight
+ import com.dd3boh.outertune.constants.MiniPlayerHeight
+ import com.dd3boh.outertune.constants.NavigationBarAnimationSpec
+ import com.dd3boh.outertune.constants.NavigationBarHeight
++import com.dd3boh.outertune.constants.LiquidGlassDockKey
++import com.dd3boh.outertune.constants.LiquidGlassIntensityKey
++import com.dd3boh.outertune.constants.LiquidGlassKey
++import com.dd3boh.outertune.constants.LiquidGlassTopBarKey
++import com.dd3boh.outertune.ui.dialog.liquidGlassSupported
++import com.dd3boh.outertune.ui.utils.GlassConfig
++import com.dd3boh.outertune.ui.utils.GlassDockSidePadding
++import com.dd3boh.outertune.ui.utils.GlassKind
++import com.dd3boh.outertune.ui.utils.LocalAppBackdrop
++import com.dd3boh.outertune.ui.utils.LocalGlassConfig
++import com.dd3boh.outertune.ui.utils.glassDockBottomPadding
++import com.dd3boh.outertune.ui.utils.rememberGlass
++import com.kyant.backdrop.backdrops.layerBackdrop
++import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+ import com.dd3boh.outertune.constants.OOBE_VERSION
+ import com.dd3boh.outertune.constants.OobeStatusKey
+ import com.dd3boh.outertune.constants.PureBlackKey
+@@ -480,6 +495,10 @@ class MainActivity : ComponentActivity() {
+                         .background(MaterialTheme.colorScheme.surface)
+                 ) {
+                     val maxW = maxWidth
++                    val liquidGlass by rememberPreference(LiquidGlassKey, defaultValue = false)
++                    val glassDock by rememberPreference(LiquidGlassDockKey, defaultValue = true)
++                    val glassTopBar by rememberPreference(LiquidGlassTopBarKey, defaultValue = true)
++                    val glassIntensity by rememberPreference(LiquidGlassIntensityKey, defaultValue = 0.5f)
+                     if (UI_DEBUG) Log.v(MAIN_TAG, "RC-2.2")
+ 
+                     fun getNavPadding(): Dp {
+@@ -982,6 +1001,10 @@ class MainActivity : ComponentActivity() {
+                             }
+ 
+                             val navbar: @Composable() (() -> Unit) = @Composable {
++                                // Inside the dock panel the player sheet draws: transparent, and kept
++                                // off the screen edges by the same numbers the panel uses.
++                                val dockGlass = rememberGlass(GlassKind.DOCK)
++                                val dockBottom = glassDockBottomPadding()
+                                 val navigationBarHeight by animateDpAsState(
+                                     targetValue = NavigationBarHeight,
+                                     animationSpec = NavigationBarAnimationSpec,
+@@ -992,6 +1015,13 @@ class MainActivity : ComponentActivity() {
+                                     modifier = Modifier
+                                         .align(Alignment.BottomCenter)
+                                         .height(bottomInset + getNavPadding())
++                                        .then(
++                                            if (dockGlass != null) Modifier.padding(
++                                                start = GlassDockSidePadding,
++                                                end = GlassDockSidePadding,
++                                                bottom = dockBottom
++                                            ) else Modifier
++                                        )
+                                         .offset {
+                                             if (navigationBarHeight == 0.dp) {
+                                                 IntOffset(
+@@ -1012,7 +1042,10 @@ class MainActivity : ComponentActivity() {
+                                                 )
+                                             }
+                                         },
+-                                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)
++                                    containerColor = if (dockGlass != null) Color.Transparent
++                                    else MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
++                                    windowInsets = if (dockGlass != null) WindowInsets(0, 0, 0, 0)
++                                    else NavigationBarDefaults.windowInsets
+                                 ) {
+                                     navigationItems.fastForEach { screen ->
+                                         // TODO: display selection when based on root page user entered
+@@ -1191,7 +1224,28 @@ class MainActivity : ComponentActivity() {
+                             // phone layout: also use this path in landscape so the player is full-width
+                             // instead of entering the fixed-width tab layout based on effective DP width.
+                             if (!tabMode || isLandscape) {
+-                                navHost()
++                                // Glass panels refract this layer, so it holds only the pages. The dock,
++                                // the player sheet and the top bar are drawn outside it: a layer that
++                                // contains one of its own readers overflows the native stack and kills
++                                // the process.
++                                val appBackdrop = rememberLayerBackdrop()
++                                val glassActive = liquidGlass && liquidGlassSupported && !showNavRail
++                                CompositionLocalProvider(
++                                    LocalAppBackdrop provides (if (glassActive) appBackdrop else null),
++                                    LocalGlassConfig provides GlassConfig(glassDock, glassTopBar, glassIntensity),
++                                ) {
++                                Box(
++                                    Modifier
++                                        .fillMaxSize()
++                                        .then(
++                                            if (glassActive) Modifier
++                                                .layerBackdrop(appBackdrop)
++                                                .background(MaterialTheme.colorScheme.surface)
++                                            else Modifier
++                                        )
++                                ) {
++                                    navHost()
++                                }
+ 
+                                 SearchBarContainer(navController, scrollBehavior, useNavRail)
+ 
+@@ -1217,6 +1271,7 @@ class MainActivity : ComponentActivity() {
+                                         .windowInsetsPadding(LocalPlayerAwareWindowInsets.current)
+                                         .align(Alignment.BottomCenter)
+                                 )
++                                }
+                             } else {
+                                 // tabmode only enables >= 600dp (unless it's forced on). For those who wish to try down
+                                 // to the widescreen limit, 320dp player is the minimum acceptable size for the player
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 3067a33..fccc12a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -733,3 +733,9 @@ val SearchBesideIconsKey = stringPreferencesKey("searchBesideIcons")
+ 
+ /** Icons inside the search field once it is clicked into, comma separated in order. */
+ val SearchInFieldIconsKey = stringPreferencesKey("searchInFieldIcons")
++
++/** Liquid glass: master switch, then each place it can be switched off, and how glassy it is (0..1). */
++val LiquidGlassKey = booleanPreferencesKey("liquidGlass")
++val LiquidGlassDockKey = booleanPreferencesKey("liquidGlassDock")
++val LiquidGlassTopBarKey = booleanPreferencesKey("liquidGlassTopBar")
++val LiquidGlassIntensityKey = floatPreferencesKey("liquidGlassIntensity")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
+index 369efc9..48d77a4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
+@@ -20,6 +20,10 @@ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.gestures.DraggableState
+ import androidx.compose.foundation.gestures.detectVerticalDragGestures
+ import androidx.compose.foundation.layout.Box
++import com.dd3boh.outertune.ui.utils.GlassDockSidePadding
++import com.dd3boh.outertune.ui.utils.GlassSpec
++import com.dd3boh.outertune.ui.utils.glassDockBottomPadding
++import com.dd3boh.outertune.ui.utils.glassPanel
+ import androidx.compose.foundation.layout.BoxScope
+ import androidx.compose.foundation.layout.BoxWithConstraints
+ import androidx.compose.foundation.layout.fillMaxSize
+@@ -74,6 +78,8 @@ fun BottomSheet(
+     onDismiss: (() -> Unit)? = null,
+     collapsedContent: @Composable BoxScope.() -> Unit,
+     collapsedBackgroundColor: Color = Color.Transparent,
++    /** When set, the collapsed mini player and the tabs under it stand on one floating glass panel. */
++    collapsedGlass: GlassSpec? = null,
+     content: @Composable BoxScope.() -> Unit,
+ ) {
+     val density = LocalDensity.current
+@@ -164,14 +170,30 @@ fun BottomSheet(
+                     )
+                     .fillMaxWidth()
+                     .height(state.collapsedBound)
+-                    .background(
+-                        Brush.verticalGradient(
+-                            colors = colors,
+-                            startY = startY,
+-                        )
++                    .then(
++                        if (collapsedGlass == null) Modifier.background(
++                            Brush.verticalGradient(
++                                colors = colors,
++                                startY = startY,
++                            )
++                        ) else Modifier
+                     ),
+-                content = collapsedContent
+-            )
++            ) {
++                if (collapsedGlass != null) {
++                    // One panel for the mini player and the tabs, which MainActivity draws over it.
++                    Box(
++                        Modifier
++                            .matchParentSize()
++                            .padding(
++                                start = GlassDockSidePadding,
++                                end = GlassDockSidePadding,
++                                bottom = glassDockBottomPadding()
++                            )
++                            .glassPanel(collapsedGlass, RoundedCornerShape(28.dp))
++                    )
++                }
++                collapsedContent()
++            }
+         }
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/dialog/LiquidGlassDialog.kt b/app/src/main/java/com/dd3boh/outertune/ui/dialog/LiquidGlassDialog.kt
+new file mode 100644
+index 0000000..25e8184
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/dialog/LiquidGlassDialog.kt
+@@ -0,0 +1,88 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.dialog
++
++import android.os.Build
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.rounded.BlurOn
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Slider
++import androidx.compose.material3.Switch
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.LiquidGlassDockKey
++import com.dd3boh.outertune.constants.LiquidGlassIntensityKey
++import com.dd3boh.outertune.constants.LiquidGlassKey
++import com.dd3boh.outertune.constants.LiquidGlassTopBarKey
++import com.dd3boh.outertune.utils.rememberPreference
++import kotlin.math.roundToInt
++
++/** True where the glass can be drawn at all: its lens is a runtime shader, which needs Android 13. */
++val liquidGlassSupported: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
++
++/** Liquid glass: on or off, each place it can be turned off separately, and how glassy it is. */
++@Composable
++fun LiquidGlassDialog(onDismiss: () -> Unit) {
++    var enabled by rememberPreference(LiquidGlassKey, defaultValue = false)
++    var dock by rememberPreference(LiquidGlassDockKey, defaultValue = true)
++    var topBar by rememberPreference(LiquidGlassTopBarKey, defaultValue = true)
++    var intensity by rememberPreference(LiquidGlassIntensityKey, defaultValue = 0.5f)
++
++    @Composable
++    fun SwitchRow(text: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
++        Row(
++            verticalAlignment = Alignment.CenterVertically,
++            modifier = Modifier
++                .fillMaxWidth()
++                .clickable(enabled = enabled) { onChange(!checked) }
++                .padding(horizontal = 24.dp, vertical = 8.dp)
++        ) {
++            Text(text, modifier = Modifier.weight(1f), color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
++            Switch(checked = checked, onCheckedChange = null, enabled = enabled)
++        }
++    }
++
++    DefaultDialog(
++        onDismiss = onDismiss,
++        icon = { Icon(Icons.Rounded.BlurOn, null) },
++        title = { Text(stringResource(R.string.liquid_glass_title)) },
++        buttons = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } }
++    ) {
++        if (!liquidGlassSupported) {
++            Text(
++                stringResource(R.string.liquid_glass_unsupported),
++                style = MaterialTheme.typography.bodySmall,
++                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
++            )
++        }
++        SwitchRow(stringResource(R.string.liquid_glass_enable), enabled && liquidGlassSupported, liquidGlassSupported) { enabled = it }
++        val on = enabled && liquidGlassSupported
++        SwitchRow(stringResource(R.string.liquid_glass_dock), dock, on) { dock = it }
++        SwitchRow(stringResource(R.string.liquid_glass_top_bar), topBar, on) { topBar = it }
++        Text(
++            stringResource(R.string.liquid_glass_intensity, (intensity * 100).roundToInt()),
++            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp)
++        )
++        Slider(
++            value = intensity,
++            onValueChange = { intensity = it },
++            enabled = on,
++            modifier = Modifier.padding(horizontal = 24.dp)
++        )
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/MiniPlayer.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/MiniPlayer.kt
+index 5c5816a..3c1030b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/MiniPlayer.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/MiniPlayer.kt
+@@ -134,6 +134,8 @@ internal fun canSeekToMiniPlayerSwipeTarget(targetIndex: Int, currentIndex: Int)
+ @Composable
+ fun MiniPlayer(
+     modifier: Modifier = Modifier,
++    /** On a glass panel: inset to sit inside it, with a rounded progress line. */
++    glass: Boolean = false,
+ ) {
+     val playerConnection = LocalPlayerConnection.current ?: return
+     val queueBoard by playerConnection.queueBoard.collectAsState()
+@@ -179,6 +181,7 @@ fun MiniPlayer(
+             .fillMaxWidth()
+             .height(MiniPlayerHeight)
+             .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Horizontal))
++            .then(if (glass) Modifier.padding(horizontal = 20.dp) else Modifier)
+ //            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp))
+     ) {
+         LinearProgressIndicator(
+@@ -188,9 +191,18 @@ fun MiniPlayer(
+                 else (position.toFloat() / duration).coerceIn(0f, 1f)
+             },
+             drawStopIndicator = { },
++            // A lighter track under a darker played part, so the line reads even at 0%.
++            color = MaterialTheme.colorScheme.primary,
++            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+             modifier = Modifier
+                 .fillMaxWidth()
+-                .height(2.dp)
++                .then(
++                    if (glass) Modifier
++                        .padding(horizontal = 4.dp)
++                        .height(3.dp)
++                        .clip(RoundedCornerShape(50))
++                    else Modifier.height(2.dp)
++                )
+                 .align(Alignment.BottomCenter),
+         )
+         Row(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index f9f3463..d34cf9f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -243,9 +243,12 @@ fun BottomSheetPlayer(
+     }
+ 
+ 
++    val dockGlass = com.dd3boh.outertune.ui.utils.rememberGlass(com.dd3boh.outertune.ui.utils.GlassKind.DOCK)
++
+     BottomSheet(
+         state = state,
+         modifier = modifier,
++        collapsedGlass = dockGlass,
+         background = {
+             PlayerBackground(
+                 playerConnection = playerConnection,
+@@ -270,7 +273,7 @@ fun BottomSheetPlayer(
+             }
+         },
+         collapsedContent = {
+-            MiniPlayer()
++            MiniPlayer(glass = dockGlass != null)
+         }
+     ) {
+         if (PLAYER_DEBUG) Log.v(TAG, "PLR-3.0")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index e647e08..fea3e70 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -83,6 +83,7 @@ import com.dd3boh.outertune.constants.ShowTopBarLogoKey
+ import com.dd3boh.outertune.constants.PauseSearchHistoryKey
+ import com.dd3boh.outertune.constants.SearchBesideIconsKey
+ import com.dd3boh.outertune.constants.SearchInFieldIconsKey
++import com.dd3boh.outertune.ui.utils.glassPanel
+ import com.dd3boh.outertune.ui.component.DEFAULT_BESIDE_SEARCH_ICONS
+ import com.dd3boh.outertune.ui.component.DEFAULT_IN_SEARCH_ICONS
+ import com.dd3boh.outertune.ui.component.ShortcutIconButton
+@@ -432,6 +433,8 @@ private fun TopIconBar(
+         }
+     }
+ 
++    // One long pane of glass around the search field and the icons, when it is on.
++    val glass = com.dd3boh.outertune.ui.utils.rememberGlass(com.dd3boh.outertune.ui.utils.GlassKind.TOP_BAR)
+     Row(
+         verticalAlignment = Alignment.CenterVertically,
+         modifier = Modifier
+@@ -442,6 +445,12 @@ private fun TopIconBar(
+             .windowInsetsPadding(windowInsets)
+             .padding(horizontal = SearchBarHorizontalPadding, vertical = SearchBarVerticalPadding)
+             .height(InputFieldHeight)
++            .then(
++                if (glass != null) Modifier
++                    .glassPanel(glass, CircleShape)
++                    .padding(horizontal = 4.dp)
++                else Modifier
++            )
+     ) {
+         if (showLogo) {
+             Image(
+@@ -460,7 +469,7 @@ private fun TopIconBar(
+         // not. With the logo hidden it runs to the left edge and the row becomes the search.
+         Surface(
+             shape = CircleShape,
+-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
++            color = if (glass != null) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh,
+             modifier = Modifier
+                 .weight(1f)
+                 .fillMaxHeight()
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index a625979..2cc1345 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -20,6 +20,8 @@ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.AppShortcut
++import androidx.compose.material.icons.rounded.BlurOn
++import com.dd3boh.outertune.ui.dialog.LiquidGlassDialog
+ import androidx.compose.material.icons.rounded.Dashboard
+ import androidx.compose.material.icons.rounded.Widgets
+ import androidx.compose.material.icons.rounded.HighQuality
+@@ -31,6 +33,10 @@ import androidx.compose.material3.Text
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.material3.TopAppBarScrollBehavior
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.setValue
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+@@ -76,6 +82,8 @@ fun AppearanceSettings(
+     val (tabletUi, onTabletUiChange) = rememberPreference(TabletUiKey, defaultValue = false)
+     val (hideDescriptions, onHideDescriptionsChange) = rememberPreference(HideSettingsDescriptionsKey, defaultValue = true)
+ 
++    var showGlassDialog by remember { mutableStateOf(false) }
++
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+         columnModifier = Modifier
+@@ -85,6 +93,12 @@ fun AppearanceSettings(
+         // The app icon is part of how the app looks on the phone, so it sits with the colours.
+         SettingsGroup(title = stringResource(R.string.theme)) {
+             ThemeAppFrag()
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.liquid_glass_title)) },
++                description = stringResource(R.string.liquid_glass_summary),
++                icon = { Icon(Icons.Rounded.BlurOn, null) },
++                onClick = { showGlassDialog = true }
++            )
+             PreferenceEntry(
+                 title = { Text(stringResource(R.string.app_icon)) },
+                 icon = { Icon(Icons.Rounded.AppShortcut, null) },
+@@ -167,6 +181,8 @@ fun AppearanceSettings(
+         }
+     }
+ 
++    if (showGlassDialog) LiquidGlassDialog { showGlassDialog = false }
++
+     TopAppBar(
+         title = { Text(stringResource(R.string.grp_appearance_controls)) },
+         navigationIcon = {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/utils/GlassBackdrop.kt b/app/src/main/java/com/dd3boh/outertune/ui/utils/GlassBackdrop.kt
+new file mode 100644
+index 0000000..fab130c
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/utils/GlassBackdrop.kt
+@@ -0,0 +1,125 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * Ported from InterTune's liquid glass (kyant0 backdrop).
++ */
++
++package com.dd3boh.outertune.ui.utils
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.WindowInsets
++import androidx.compose.foundation.layout.systemBars
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.surfaceColorAtElevation
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.Immutable
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
++import androidx.compose.runtime.staticCompositionLocalOf
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.Shape
++import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.lerp
++import androidx.compose.ui.util.lerp
++import com.kyant.backdrop.backdrops.LayerBackdrop
++import com.kyant.backdrop.drawBackdrop
++import com.kyant.backdrop.effects.blur
++import com.kyant.backdrop.effects.lens
++import com.kyant.backdrop.effects.vibrancy
++
++/**
++ * The app's page content, published as a backdrop for glass panels to refract. Null when liquid
++ * glass is off or this device cannot draw it (it needs Android 13 for the lens shader).
++ *
++ * A layer must never contain one of its own readers: that makes RenderNode::prepareTreeImpl recurse
++ * until the native stack overflows and the process dies with no Java exception. So only panels
++ * drawn OUTSIDE the nav host (the dock, the player sheet, the top bar) read it.
++ */
++val LocalAppBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
++
++/** Which glass is switched on, and how strong. Provided by MainActivity next to [LocalAppBackdrop]. */
++@Immutable
++data class GlassConfig(val dock: Boolean = true, val topBar: Boolean = true, val intensity: Float = 0.5f)
++
++val LocalGlassConfig = staticCompositionLocalOf { GlassConfig() }
++
++enum class GlassKind { DOCK, TOP_BAR }
++
++/**
++ * Resolved numbers for one panel, all derived from the single intensity slider ("how much glass"):
++ * more intensity is clearer and more strongly bent, never more opaque.
++ */
++@Immutable
++data class GlassSpec(val backdrop: LayerBackdrop, val intensity: Float) {
++    private val t get() = intensity.coerceIn(0f, 1f)
++
++    /** How much the panel hides what is behind it. Falls as intensity rises. */
++    val frost: Float get() = 1f - kotlin.math.sqrt(t)
++
++    /** Blur behind the panel. */
++    val blur: Dp get() = lerp(6.dp, 32.dp, frost)
++
++    /** Lens strength; floored because lens() with 0 drops the rounded shape. */
++    val lensT: Float get() = t.coerceIn(0.15f, 1f)
++
++    /** Tint opacity; never near zero, or text behind fights the text on the panel. */
++    fun tintAlpha(min: Float = 0.52f, max: Float = 0.97f): Float = lerp(min, max, frost)
++
++    @Composable
++    fun tint(elevation: Dp = 6.dp, min: Float = 0.62f, max: Float = 0.97f): Color =
++        MaterialTheme.colorScheme.surfaceColorAtElevation(elevation).copy(alpha = tintAlpha(min, max))
++}
++
++/** The glass for [kind], or null when it is off, unavailable here, or switched off for that place. */
++@Composable
++fun rememberGlass(kind: GlassKind): GlassSpec? {
++    val backdrop = LocalAppBackdrop.current ?: return null
++    val config = LocalGlassConfig.current
++    val on = when (kind) {
++        GlassKind.DOCK -> config.dock
++        GlassKind.TOP_BAR -> config.topBar
++    }
++    return if (on) GlassSpec(backdrop, config.intensity) else null
++}
++
++/** [shape] filled with glass over [GlassSpec.backdrop], then the tint. The caller makes sure this node is not inside the recorded layer. */
++@Composable
++fun Modifier.glassPanel(glass: GlassSpec, shape: Shape, tint: Color = glass.tint()): Modifier {
++    val currentShape = rememberUpdatedState(shape)
++    val shapeProvider = remember { { currentShape.value } }
++    return this
++        .drawBackdrop(
++            backdrop = glass.backdrop,
++            shape = shapeProvider,
++            effects = {
++                vibrancy()
++                blur(glass.blur.toPx())
++                lens(
++                    refractionHeight = 12f.dp.toPx() * glass.lensT,
++                    refractionAmount = 24f.dp.toPx() * glass.lensT,
++                    depthEffect = true,
++                )
++            },
++        )
++        // Tint as a background after the backdrop: on the node's own canvas it would paint a square.
++        .background(tint, shape)
++}
++
++/**
++ * How far the floating dock stands off the bottom of the screen. One number for the panel (drawn by
++ * the player sheet) and the tabs (drawn by MainActivity), so the tabs sit inside the panel.
++ */
++@Composable
++fun glassDockBottomPadding(): Dp {
++    val density = LocalDensity.current
++    val inset = with(density) { WindowInsets.systemBars.getBottom(density).toDp() }
++    return (inset - 4.dp).coerceAtLeast(6.dp)
++}
++
++/** Space between the dock and the screen's side edges. */
++val GlassDockSidePadding = 12.dp
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 728db04..b380a56 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -315,6 +315,13 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="lyrics_karaoke_hz_title">Word highlight update speed</string>
+     <string name="lyrics_multiline_title">Read multiline lyrics</string>
+     <string name="lyrics_multiline_description">Treat lines between sync points as one</string>
++    <string name="liquid_glass_title">Liquid glass</string>
++    <string name="liquid_glass_summary">Frosted, refracting panels for the mini player, tabs and top bar</string>
++    <string name="liquid_glass_unsupported">Needs Android 13 or newer.</string>
++    <string name="liquid_glass_enable">Enable liquid glass</string>
++    <string name="liquid_glass_dock">Mini player and tabs</string>
++    <string name="liquid_glass_top_bar">Search and top bar</string>
++    <string name="liquid_glass_intensity">Intensity: %d%%</string>
+     <string name="search_icons_beside_title">Icons beside the search field</string>
+     <string name="search_icons_in_title">Icons in the search field</string>
+     <string name="search_icons_none">None</string>
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index d3954fa..b65c0b4 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -17,6 +17,7 @@ hilt = "2.57.2"
+ ktor = "3.5.0"
+ ksp = "2.3.9"
+ taglib = "1.0.6"
++kyant-backdrop = "1.0.6"
+ 
+ [libraries]
+ timber = { group = "com.jakewharton.timber", name = "timber", version = "5.0.1" }
+@@ -83,6 +84,7 @@ json = { module = "org.json:json", version.ref = "json" }
+ aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutLibraries" }
+ brotli = { group = "org.brotli", name = "dec", version = "0.1.2" }
+ taglib = { module = "io.github.kyant0:taglib", version.ref = "taglib" }
++kyant-backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "kyant-backdrop" }
+ 
+ desugaring = { group = "com.android.tools", name = "desugar_jdk_libs", version = "2.1.5" }
+ 
+-- 
+2.43.0
+
