@@ -274016,3 +274016,156 @@ index a2a12ce..a107833 100644
 -- 
 2.43.0
 
+From 48813c093df86596d6083dc1b965e385e1e78356 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 20 Nov 2026 18:47:45 +0800
+Subject: [PATCH] BetterLyrics: fall back to the older host when the new one
+ has nothing
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../com/dd3boh/betterlyrics/BetterLyrics.kt   | 40 +++++++++++++------
+ 1 file changed, 27 insertions(+), 13 deletions(-)
+
+diff --git a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
+index 803d169..6f0392c 100644
+--- a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
++++ b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
+@@ -10,6 +10,7 @@ import io.ktor.client.plugins.defaultRequest
+ import io.ktor.client.request.get
+ import io.ktor.client.request.headers
+ import io.ktor.client.request.parameter
++import io.ktor.client.statement.HttpResponse
+ import io.ktor.http.HttpStatusCode
+ import io.ktor.serialization.kotlinx.json.json
+ import kotlinx.serialization.json.Json
+@@ -22,6 +23,30 @@ import java.io.IOException
+  * shared lyrics parse entry point.
+  */
+ object BetterLyrics {
++    /**
++     * Its current home first, then the older host, which InterTune still asks and which has been
++     * seen to answer for songs the new one does not. Whichever answers 200 first is used.
++     */
++    private val HOSTS = listOf("https://api.betterlyrics.org", "https://lyrics-api.boidu.dev")
++
++    private suspend fun lookup(path: String, title: String, artist: String, duration: Int, album: String?): HttpResponse {
++        var last: HttpResponse? = null
++        var failure: Throwable? = null
++        for (host in HOSTS) {
++            val response = runCatching {
++                client.get("$host$path") {
++                    parameter("s", title)
++                    parameter("a", artist)
++                    if (duration > 0) parameter("d", duration)
++                    if (!album.isNullOrBlank()) parameter("al", album)
++                }
++            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; failure = it }.getOrNull() ?: continue
++            if (response.status == HttpStatusCode.OK) return response
++            last = response
++        }
++        return last ?: throw (failure ?: IOException("BetterLyrics unreachable"))
++    }
++
+     private val client by lazy {
+         HttpClient {
+             install(ContentNegotiation) {
+@@ -42,7 +67,6 @@ object BetterLyrics {
+             }
+ 
+             defaultRequest {
+-                url("https://api.betterlyrics.org") // its current home; lyrics-api.boidu.dev was the old one
+                 // The API rejects requests without a browser-shaped User-Agent.
+                 headers {
+                     append("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+@@ -66,12 +90,7 @@ object BetterLyrics {
+         duration: Int,
+         album: String? = null,
+     ): Result<String?> = runCatching {
+-        val response = client.get("/getLyrics") {
+-            parameter("s", title)
+-            parameter("a", artist)
+-            if (duration > 0) parameter("d", duration)
+-            if (!album.isNullOrBlank()) parameter("al", album)
+-        }
++        val response = lookup("/getLyrics", title, artist, duration, album)
+         val ttml = if (response.status == HttpStatusCode.OK) {
+             response.body<TTMLResponse>().ttml?.trim()?.takeIf { it.isNotEmpty() }
+         } else {
+@@ -90,12 +109,7 @@ object BetterLyrics {
+ 
+     /** QQ Music's word-timed lyrics through BetterLyrics, as TTML, or null - see [QrcConverter]. */
+     private suspend fun qqLyrics(title: String, artist: String, duration: Int, album: String?): String? = runCatching {
+-        val response = client.get("/qq/getLyrics") {
+-            parameter("s", title)
+-            parameter("a", artist)
+-            if (duration > 0) parameter("d", duration)
+-            if (!album.isNullOrBlank()) parameter("al", album)
+-        }
++        val response = lookup("/qq/getLyrics", title, artist, duration, album)
+         if (response.status != HttpStatusCode.OK) return@runCatching null
+         response.body<QqResponse>().lyrics?.let { QrcConverter.toTtml(it, title) }
+     }.getOrNull()
+-- 
+2.43.0
+
+From 63b032bc02e4c44a72dc73fbb7d0b7cf7bbeb368 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 20 Nov 2026 18:55:06 +0800
+Subject: [PATCH] BetterLyrics: log which host answered each lookup
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/lyrics/BetterLyricsProvider.kt    |  5 +++++
+ .../main/java/com/dd3boh/betterlyrics/BetterLyrics.kt  | 10 +++++++++-
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
+index f6b13dc..00da327 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
+@@ -10,6 +10,11 @@ object BetterLyricsProvider : LyricsProvider {
+     override val id = "betterlyrics"
+     override val name = "BetterLyrics"
+ 
++    init {
++        // Shows in logcat under "BetterLyrics": the exact host and status of every lookup.
++        BetterLyrics.log = { android.util.Log.i("BetterLyrics", it) }
++    }
++
+     override fun isEnabled(context: Context): Boolean =
+         context.dataStore[EnableBetterLyricsKey] ?: true
+ 
+diff --git a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
+index 6f0392c..888576c 100644
+--- a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
++++ b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
+@@ -27,6 +27,9 @@ object BetterLyrics {
+      * Its current home first, then the older host, which InterTune still asks and which has been
+      * seen to answer for songs the new one does not. Whichever answers 200 first is used.
+      */
++    /** Set by the app to receive one line per request saying which host answered (or failed) and how. */
++    @Volatile var log: ((String) -> Unit)? = null
++
+     private val HOSTS = listOf("https://api.betterlyrics.org", "https://lyrics-api.boidu.dev")
+ 
+     private suspend fun lookup(path: String, title: String, artist: String, duration: Int, album: String?): HttpResponse {
+@@ -40,7 +43,12 @@ object BetterLyrics {
+                     if (duration > 0) parameter("d", duration)
+                     if (!album.isNullOrBlank()) parameter("al", album)
+                 }
+-            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; failure = it }.getOrNull() ?: continue
++            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; failure = it }.getOrNull()
++            if (response == null) {
++                log?.invoke("$host$path unreachable: ${failure?.message}")
++                continue
++            }
++            log?.invoke("$host$path -> HTTP ${response.status.value} (\"$title\" - $artist)")
+             if (response.status == HttpStatusCode.OK) return response
+             last = response
+         }
+-- 
+2.43.0
+
