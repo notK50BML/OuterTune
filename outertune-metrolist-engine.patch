@@ -277323,3 +277323,43 @@ index 7796d6c..12aa376 100644
 -- 
 2.43.0
 
+From fd9788e0e05c5c5f43f941c48fa3273c96a4b772 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 21 Nov 2026 11:29:23 +0800
+Subject: [PATCH] Fix missing imports in BottomSheet and Queue
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt  | 1 +
+ app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt       | 2 ++
+ 2 files changed, 3 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
+index 48d77a4..302381d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
+@@ -20,6 +20,7 @@ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.gestures.DraggableState
+ import androidx.compose.foundation.gestures.detectVerticalDragGestures
+ import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.padding
+ import com.dd3boh.outertune.ui.utils.GlassDockSidePadding
+ import com.dd3boh.outertune.ui.utils.GlassSpec
+ import com.dd3boh.outertune.ui.utils.glassDockBottomPadding
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
+index 07895f0..91af733 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
+@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.BoxScope
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.ColumnScope
+ import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.calculateEndPadding
++import androidx.compose.foundation.layout.calculateStartPadding
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.WindowInsets
+-- 
+2.43.0
+
