@@ -1,7 +1,7 @@
 From 5e80648c172d424b37753f0535c6e2d353e074df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:19:43 +0800
-Subject: [PATCH 01/37] Android: the Local tab gets Stats, Settings and Account
+Subject: [PATCH 01/39] Android: the Local tab gets Stats, Settings and Account
  like Home
 
 With the Search tab on, the tabs have no bar across the top, so Home puts
@@ -66,7 +66,7 @@ index 7057102..dd43b8e 100644
 From 1445e31580e458755f53d1410c921e517538311c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 02/37] Android Local tab: chips stay at the top, search and
+Subject: [PATCH 02/39] Android Local tab: chips stay at the top, search and
  layout move into the header
 
 With the Search tab on nothing else is across the top, so the chips (and
@@ -244,7 +244,7 @@ index dd43b8e..e782829 100644
 From 8bc5e3489c1eea7321d99f89325ee8835f326386 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 03/37] Widget lyrics: redraw when the next word is due, not
+Subject: [PATCH 03/39] Widget lyrics: redraw when the next word is due, not
  once a second
 
 The widget was redrawn on a fixed second, so a word lit up to a second after
@@ -359,7 +359,7 @@ index 305c846..e555cbd 100644
 From dececfb353d3b70d287f8e042a525ac774297b15 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:26:33 +0800
-Subject: [PATCH 04/37] Home: Stats, Settings and Account sit on the Recent
+Subject: [PATCH 04/39] Home: Stats, Settings and Account sit on the Recent
  activity row
 
 With the Search tab on they were at the end of the chips row at the very
@@ -438,7 +438,7 @@ index 188dd20..2e7c44b 100644
 From fe1d90be991f7d1d35d33e5a30ae9ee3b92142a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:27:39 +0800
-Subject: [PATCH 05/37] Home: icons move to the Recent activity row only when
+Subject: [PATCH 05/39] Home: icons move to the Recent activity row only when
  the chips are hidden
 
 With the chips shown, Stats / Settings / Account stay at the end of the
@@ -476,7 +476,7 @@ index 2e7c44b..97265f8 100644
 From 665e3407905b79e776f41e5a4868fdb06fefb0e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:31:07 +0800
-Subject: [PATCH 06/37] Streams: try every visionOS identity, so one being
+Subject: [PATCH 06/39] Streams: try every visionOS identity, so one being
  closed does not cost the client
 
 Only VISIONOS was in the playback chains; VISIONOS_0_1 existed but was used
@@ -587,7 +587,7 @@ index 9fa09c8..b7e6b9d 100644
 From 45288afae5eedc09d15dec8a24f219f13a9b07ff Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:59:41 +0800
-Subject: [PATCH 07/37] Local tab: count it as a top-level page, so it gets the
+Subject: [PATCH 07/39] Local tab: count it as a top-level page, so it gets the
  top bar or loses its height
 
 The top bar (search, Stats, Settings, Account) and its reserved height were
@@ -694,7 +694,7 @@ index e7b8f84..1a0f38e 100644
 From 18ed6c865483771adbff0cdd8b3d36d5f696ca25 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 18 Nov 2026 21:28:57 +0800
-Subject: [PATCH 08/37] Desktop mini player lyrics follow the Fade / Sweep
+Subject: [PATCH 08/39] Desktop mini player lyrics follow the Fade / Sweep
  setting
 
 The line being sung in the mini player always lit its words with the
@@ -861,7 +861,7 @@ index 6f8516a..7c40263 100644
 From 3129581ba5730a051407789656cc3152523538dd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:24:59 +0800
-Subject: [PATCH 09/37] Widget lyrics: highlight style and smooth-word
+Subject: [PATCH 09/39] Widget lyrics: highlight style and smooth-word
  settings, lit by stage within a word
 
 The widget lit a whole word at once. Words now carry their end times, and
@@ -1251,7 +1251,7 @@ index 4a08bf5..7b86071 100644
 From 2446dd8084d2c684b52868fa509ad1f991807523 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:30:04 +0800
-Subject: [PATCH 10/37] Add Simple reactive player background (ported from
+Subject: [PATCH 10/39] Add Simple reactive player background (ported from
  InterTune's Living blur)
 
 Cover reduced to soft colour patches that move with the music, driven by an
@@ -4085,7 +4085,7 @@ index 1bd80ea..b2ab9d7 100644
 From 6efc00004937c393e91dafd102c663636991694f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:34:41 +0800
-Subject: [PATCH 11/37] Port InterTune radio fixes: dotted song lengths and
+Subject: [PATCH 11/39] Port InterTune radio fixes: dotted song lengths and
  signed-out account id
 
 parseTime reads 3.34 as well as 3:34 (Indonesian, Finnish, Danish), so radios and
@@ -4318,7 +4318,7 @@ index 8b44a6e..55fc6f9 100644
 From 722dbcaa4932a81a7a92b879717db447649846b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:34:54 +0800
-Subject: [PATCH 12/37] Radio pages add only songs the queue has not already
+Subject: [PATCH 12/39] Radio pages add only songs the queue has not already
  had
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -4399,7 +4399,7 @@ index 3e0ddcd..cbd6e59 100644
 From 0eeff7214979b8dc9a67b766fac27af17e743f81 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:35:31 +0800
-Subject: [PATCH 13/37] Widget lyrics: a new line slides up into place in
+Subject: [PATCH 13/39] Widget lyrics: a new line slides up into place in
  stages instead of jumping
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -4521,7 +4521,7 @@ index cd8c958..4064b7d 100644
 From 74e445a8e832b1ccfe0072c35b60a2445dedd921 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 15:41:01 +0800
-Subject: [PATCH 14/37] Discord presence: clear before closing and start each
+Subject: [PATCH 14/39] Discord presence: clear before closing and start each
  session from an empty card (from Metrolist)
 
 Closing the app or rebuilding the connection now clears the activity first, bounded to
@@ -4788,7 +4788,7 @@ index 995871d..1776e46 100644
 From 26123a4eb463919897d6e6e56a95e62c9171b8e1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 15:41:30 +0800
-Subject: [PATCH 15/37] AutoEQ: match one headphone to another (EQ Studio and
+Subject: [PATCH 15/39] AutoEQ: match one headphone to another (EQ Studio and
  Settings > Equaliser)
 
 Pick the headphones in use and the pair to imitate; the difference of their AutoEQ
@@ -5108,7 +5108,7 @@ index b2ab9d7..bbba72a 100644
 From 9dfc2bfdbf1e29313f9ea536f06794d1b51cb9e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 17:12:59 +0800
-Subject: [PATCH 16/37] Fix the Simple reactive colours string: escape the
+Subject: [PATCH 16/39] Fix the Simple reactive colours string: escape the
  apostrophe (aapt refused the resource)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5137,7 +5137,7 @@ index bbba72a..920c0f2 100644
 From 3fd6086a13929d77938168d97cc6bc1f4c8c97f6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 18:50:10 +0800
-Subject: [PATCH 17/37] Widget lyrics style preference: EnumListPreference
+Subject: [PATCH 17/39] Widget lyrics style preference: EnumListPreference
  needs its icon argument
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5165,7 +5165,7 @@ index bbfe850..58883cf 100644
 From 1228f794fb13cd5b836e88a7522cdd03a3eab860 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 19:39:16 +0800
-Subject: [PATCH 18/37] Default music player: MainActivity answers
+Subject: [PATCH 18/39] Default music player: MainActivity answers
  MAIN/MUSIC_PLAYER/APP_MUSIC and audio VIEW; scan folders compared as folders,
  not as text
 
@@ -5304,7 +5304,7 @@ index 57b2cdf..99da1fb 100644
 From d724de8ed967cfdf9e495e84c0a7086ce41328ea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 19/37] Links: a link that starts the app is followed, and
+Subject: [PATCH 19/39] Links: a link that starts the app is followed, and
  YouTube Music album/artist and shorts links open
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5408,7 +5408,7 @@ index 604815d..709d82e 100644
 From ced9b87f3edadf7716cb04509e985c145b81866e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 20/37] Widget: cached cover and seek bar, eased line slide,
+Subject: [PATCH 20/39] Widget: cached cover and seek bar, eased line slide,
  and spare height on tall widgets goes to the lyrics
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5588,7 +5588,7 @@ index 0000000..0e7ab96
 From cd8a5cfaa72b761724db87156637d5283b5117e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 21/37] AutoEQ matching reuses the AutoEQ search dialog instead
+Subject: [PATCH 21/39] AutoEQ matching reuses the AutoEQ search dialog instead
  of a second copy
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5967,7 +5967,7 @@ index 920c0f2..ecb8dfb 100644
 From 536864aff7e04d97ae13e39260b49dd1ce6a31e4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:58:51 +0800
-Subject: [PATCH 22/37] AutoEQ: search the full database by source, add
+Subject: [PATCH 22/39] AutoEQ: search the full database by source, add
  Databases dialog; add open-links settings entry
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6537,7 +6537,7 @@ index ecb8dfb..37e6249 100644
 From fb9e099ea590c38ba344dd324f4ca96ec8227fe8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 21:36:03 +0800
-Subject: [PATCH 23/37] Fix crash opening AutoEQ Databases: bound the list
+Subject: [PATCH 23/39] Fix crash opening AutoEQ Databases: bound the list
  height
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6566,7 +6566,7 @@ index a2a12ce..a107833 100644
 From 48813c093df86596d6083dc1b965e385e1e78356 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 18:47:45 +0800
-Subject: [PATCH 24/37] BetterLyrics: fall back to the older host when the new
+Subject: [PATCH 24/39] BetterLyrics: fall back to the older host when the new
  one has nothing
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6661,7 +6661,7 @@ index 803d169..6f0392c 100644
 From 63b032bc02e4c44a72dc73fbb7d0b7cf7bbeb368 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 18:55:06 +0800
-Subject: [PATCH 25/37] BetterLyrics: log which host answered each lookup
+Subject: [PATCH 25/39] BetterLyrics: log which host answered each lookup
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -6721,7 +6721,7 @@ index 6f0392c..888576c 100644
 From cc4df1cc9b2463c3d72240ed0a84ec50a8795312 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:12:00 +0800
-Subject: [PATCH 26/37] Tickable, reorderable icons beside and in the search
+Subject: [PATCH 26/39] Tickable, reorderable icons beside and in the search
  field; replace the identify button placement
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -7192,7 +7192,7 @@ index 37e6249..728db04 100644
 From ffa9d4f35559ab03ae2dbe31b7b9e2218d71fca0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:17:40 +0800
-Subject: [PATCH 27/37] Liquid glass: joined mini player and tabs panel, top
+Subject: [PATCH 27/39] Liquid glass: joined mini player and tabs panel, top
  bar pill, Appearance settings
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -7856,7 +7856,7 @@ index d3954fa..b65c0b4 100644
 From 14cb6b7820bddfc9d0a8f183b16880d4e63dfc7a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:20:52 +0800
-Subject: [PATCH 28/37] Liquid glass for floating buttons through a glass host,
+Subject: [PATCH 28/39] Liquid glass for floating buttons through a glass host,
  with its own toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -8259,7 +8259,7 @@ index b380a56..2332d60 100644
 From 29d9a70019b04af3efa690974d6db14777ef4774 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 10:13:40 +0800
-Subject: [PATCH 29/37] Fix compile errors in liquid glass dialog and icon
+Subject: [PATCH 29/39] Fix compile errors in liquid glass dialog and icon
  lists
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -8323,7 +8323,7 @@ index 8a4baa9..5769e86 100644
 From 2bed81fc87cc6aec7ff6fde8d9d0687352fa347c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 10:15:05 +0800
-Subject: [PATCH 30/37] Liquid glass back buttons with their own toggle
+Subject: [PATCH 30/39] Liquid glass back buttons with their own toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -9400,7 +9400,7 @@ index 2332d60..7796d6c 100644
 From b7f85254e7dc63e58e4b41cb1e6b011fe23f9ec4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 11:11:43 +0800
-Subject: [PATCH 31/37] Liquid glass: remaining back buttons, queue bar pane
+Subject: [PATCH 31/39] Liquid glass: remaining back buttons, queue bar pane
  over the list, queue toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -9882,7 +9882,7 @@ index 7796d6c..12aa376 100644
 From fd9788e0e05c5c5f43f941c48fa3273c96a4b772 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 11:29:23 +0800
-Subject: [PATCH 32/37] Fix missing imports in BottomSheet and Queue
+Subject: [PATCH 32/39] Fix missing imports in BottomSheet and Queue
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -9923,7 +9923,7 @@ index 07895f0..91af733 100644
 From 77c69cd1b30740dc90c1110624222fc638bd7480 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:08:42 +0800
-Subject: [PATCH 33/37] Liquid glass: queue pane above system buttons, hosted
+Subject: [PATCH 33/39] Liquid glass: queue pane above system buttons, hosted
  controls clip and fade with their screen, glass like/share, settings as a
  screen
 
@@ -10440,7 +10440,7 @@ index 12aa376..e450437 100644
 From af858be045c5b3aa51321e61c052edef565ed4d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:09:35 +0800
-Subject: [PATCH 34/37] Add LyricsPlus (YouLy+) as a lyrics provider
+Subject: [PATCH 34/39] Add LyricsPlus (YouLy+) as a lyrics provider
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -10693,7 +10693,7 @@ index 0000000..339ff43
 From 416154c4103fbd8ed69cb5097feb37f84e5d2f9e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:10:20 +0800
-Subject: [PATCH 35/37] Lyrics: search with InterTune's cleaned title, album
+Subject: [PATCH 35/39] Lyrics: search with InterTune's cleaned title, album
  and first artist; ask boidu host first
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -10884,7 +10884,7 @@ index 888576c..aa36196 100644
 From b078b11df5066c9b6304cd50a57526c984554066 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 19:13:03 +0800
-Subject: [PATCH 36/37] LRCLIB: read the new word-synced lyricsfile
+Subject: [PATCH 36/39] LRCLIB: read the new word-synced lyricsfile
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11099,7 +11099,7 @@ index 35e4ca2..2ab36fe 100644
 From ce77d2040daef1c7d9f896e55d369fca586548da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 19:21:01 +0800
-Subject: [PATCH 37/37] LRCLIB word-synced lyrics as their own provider
+Subject: [PATCH 37/39] LRCLIB word-synced lyrics as their own provider
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11245,6 +11245,301 @@ index 5ed5d86..aff13a2 100644
                  if (it.syncedLyrics != null && duration == -1) {
                      count++
                      it.syncedLyrics.let(callback)
+-- 
+2.43.0
+
+
+From 3e6101c778bfd2f2658efe593e35cdd1433c9bb5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 22 Nov 2026 16:56:05 +0800
+Subject: [PATCH 38/39] Liquid glass for the equalizer cards (with a settings
+ toggle); denser glass back buttons with theme-coloured icons
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../java/com/dd3boh/outertune/MainActivity.kt |  4 +-
+ .../outertune/constants/PreferenceKeys.kt     |  1 +
+ .../outertune/ui/component/BackButton.kt      | 15 +++-
+ .../outertune/ui/player/EqualizerPanel.kt     | 71 +++++++++++++++----
+ .../screens/settings/LiquidGlassSettings.kt   |  8 +++
+ .../outertune/ui/utils/GlassBackdrop.kt       |  2 +-
+ app/src/main/res/values/strings-ot.xml        |  1 +
+ 7 files changed, 86 insertions(+), 16 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index ac4b1ea..cb90203 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -145,6 +145,7 @@ import com.dd3boh.outertune.constants.LiquidGlassControlsKey
+ import com.dd3boh.outertune.constants.LiquidGlassFabKey
+ import com.dd3boh.outertune.constants.LiquidGlassKey
+ import com.dd3boh.outertune.constants.LiquidGlassQueueKey
++import com.dd3boh.outertune.constants.LiquidGlassEqualizerKey
+ import com.dd3boh.outertune.ui.component.GlassHostBox
+ import com.dd3boh.outertune.ui.component.LocalGlassActiveEntry
+ import com.dd3boh.outertune.constants.LiquidGlassTopBarKey
+@@ -506,6 +507,7 @@ class MainActivity : ComponentActivity() {
+                     val glassFab by rememberPreference(LiquidGlassFabKey, defaultValue = true)
+                     val glassControls by rememberPreference(LiquidGlassControlsKey, defaultValue = true)
+                     val glassQueue by rememberPreference(LiquidGlassQueueKey, defaultValue = true)
++                    val glassEqualizer by rememberPreference(LiquidGlassEqualizerKey, defaultValue = true)
+                     val glassIntensity by rememberPreference(LiquidGlassIntensityKey, defaultValue = 0.5f)
+                     if (UI_DEBUG) Log.v(MAIN_TAG, "RC-2.2")
+ 
+@@ -1243,7 +1245,7 @@ class MainActivity : ComponentActivity() {
+                                 val glassActive = liquidGlass && liquidGlassSupported && !showNavRail
+                                 CompositionLocalProvider(
+                                     LocalAppBackdrop provides (if (glassActive) appBackdrop else null),
+-                                    LocalGlassConfig provides GlassConfig(glassDock, glassTopBar, glassFab, glassControls, glassQueue, glassIntensity),
++                                    LocalGlassConfig provides GlassConfig(glassDock, glassTopBar, glassFab, glassControls, glassQueue, glassIntensity, glassEqualizer),
+                                 ) {
+                                 Box(
+                                     Modifier
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 6eb961c..cd2d55e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -743,4 +743,5 @@ val LiquidGlassTopBarKey = booleanPreferencesKey("liquidGlassTopBar")
+ val LiquidGlassIntensityKey = floatPreferencesKey("liquidGlassIntensity")
+ val LiquidGlassFabKey = booleanPreferencesKey("liquidGlassFab")
+ val LiquidGlassControlsKey = booleanPreferencesKey("liquidGlassControls")
++val LiquidGlassEqualizerKey = booleanPreferencesKey("liquidGlassEqualizer")
+ val LiquidGlassQueueKey = booleanPreferencesKey("liquidGlassQueue")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/BackButton.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/BackButton.kt
+index 0cc9e91..1d6b719 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/BackButton.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/BackButton.kt
+@@ -11,6 +11,9 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material3.Icon
+ import androidx.compose.runtime.Composable
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.LocalContentColor
++import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.res.stringResource
+@@ -41,13 +44,21 @@ fun GlassIconButton(
+     val host = LocalGlassHost.current
+     val config = LocalGlassConfig.current
+     val glass = if (host != null && config.controls) GlassSpec(host.backdrop, config.intensity) else null
++    val wrapped: @Composable () -> Unit = if (glass != null) {
++        {
++            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) { content() }
++        }
++    } else content
+     IconButton(
+         onClick = onClick,
+         onLongClick = onLongClick,
+         modifier = if (host != null && glass != null) {
+-            Modifier.drawnBy(host).graphicsLayer().glassPanel(glass, CircleShape)
++            // Denser than the other panels, and the icon in the theme's own colour: the top bar may
++            // have picked white or black for the photo behind it (the artist page), which is no
++            // help on a pane that is tinted by the theme.
++            Modifier.drawnBy(host).graphicsLayer().glassPanel(glass, CircleShape, glass.tint(elevation = 8.dp, min = 0.72f, max = 0.97f))
+         } else Modifier,
+-        content = content,
++        content = wrapped,
+     )
+ }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index 13784c6..1485d1a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -65,6 +65,15 @@ import androidx.compose.material3.Switch
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TextButton
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.CompositionLocalProvider
++import androidx.compose.runtime.staticCompositionLocalOf
++import com.dd3boh.outertune.ui.utils.GlassSpec
++import com.dd3boh.outertune.ui.utils.LocalAppBackdrop
++import com.dd3boh.outertune.ui.utils.LocalGlassConfig
++import com.dd3boh.outertune.ui.utils.glassPanel
++import com.kyant.backdrop.backdrops.LayerBackdrop
++import com.kyant.backdrop.backdrops.layerBackdrop
++import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.rememberUpdatedState
+@@ -198,16 +207,33 @@ internal fun EqualizerCard(
+     modifier: Modifier = Modifier,
+     content: @Composable ColumnScope.() -> Unit,
+ ) {
++    val backdrop = LocalEqualizerBackdrop.current
++    val shape = RoundedCornerShape(20.dp)
+     Column(
+         modifier = modifier
+             .fillMaxWidth()
+-            .clip(RoundedCornerShape(20.dp))
+-            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f))
++            .then(
++                if (backdrop != null) {
++                    // Liquid glass over the panel's own background (the player's cover or gradient).
++                    val glass = GlassSpec(backdrop, LocalGlassConfig.current.intensity)
++                    Modifier.glassPanel(glass, shape, glass.tint(elevation = 3.dp, min = 0.40f, max = 0.85f))
++                } else {
++                    Modifier
++                        .clip(shape)
++                        .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f))
++                }
++            )
+             .padding(16.dp),
+         content = content,
+     )
+ }
+ 
++/**
++ * What the equaliser's glass cards refract: the panel's own background, recorded apart from the
++ * cards (a layer must not contain its own readers). Null when liquid glass is off for the panel.
++ */
++internal val LocalEqualizerBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
++
+ /**
+  * A 12-band parametric equalizer, backed by [com.dd3boh.outertune.audio.EqualizerAudioProcessor]
+  * in the playback audio pipeline.
+@@ -273,10 +299,14 @@ fun EqualizerPanel() {
+             // compressor, and composing all of it behind a closed sheet would be paid for on every
+             // track change.
+             if (open || panelState.warm) {
+-                EqualizerPanelContent(
+-                    active = open,
+-                    onDismiss = { panelState.visible = false },
+-                )
++                val glassOn = LocalAppBackdrop.current != null && LocalGlassConfig.current.equalizer
++                val eqBackdrop = rememberLayerBackdrop()
++                CompositionLocalProvider(LocalEqualizerBackdrop provides if (glassOn) eqBackdrop else null) {
++                    EqualizerPanelContent(
++                        active = open,
++                        onDismiss = { panelState.visible = false },
++                    )
++                }
+             }
+         }
+     }
+@@ -604,12 +634,29 @@ private fun EqualizerPanelContent(
+                 detectVerticalDragGestures { change, _ -> change.consume() }
+             }
+     ) {
+-        PlayerBackground(
+-            playerConnection = playerConnection,
+-            playerBackground = playerBackground,
+-            showLyrics = showLyrics,
+-            useDarkTheme = useDarkTheme,
+-        )
++        val eqBackdrop = LocalEqualizerBackdrop.current
++        if (eqBackdrop != null) {
++            Box(
++                Modifier
++                    .matchParentSize()
++                    .layerBackdrop(eqBackdrop)
++                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation))
++            ) {
++                PlayerBackground(
++                    playerConnection = playerConnection,
++                    playerBackground = playerBackground,
++                    showLyrics = showLyrics,
++                    useDarkTheme = useDarkTheme,
++                )
++            }
++        } else {
++            PlayerBackground(
++                playerConnection = playerConnection,
++                playerBackground = playerBackground,
++                showLyrics = showLyrics,
++                useDarkTheme = useDarkTheme,
++            )
++        }
+ 
+         Column(
+             modifier = Modifier
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LiquidGlassSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LiquidGlassSettings.kt
+index 86e1bc0..e0ad48c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LiquidGlassSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LiquidGlassSettings.kt
+@@ -26,6 +26,7 @@ import androidx.navigation.NavController
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.LiquidGlassControlsKey
+ import com.dd3boh.outertune.constants.LiquidGlassDockKey
++import com.dd3boh.outertune.constants.LiquidGlassEqualizerKey
+ import com.dd3boh.outertune.constants.LiquidGlassFabKey
+ import com.dd3boh.outertune.constants.LiquidGlassIntensityKey
+ import com.dd3boh.outertune.constants.LiquidGlassKey
+@@ -53,6 +54,7 @@ fun LiquidGlassSettings(
+     var fab by rememberPreference(LiquidGlassFabKey, defaultValue = true)
+     var controls by rememberPreference(LiquidGlassControlsKey, defaultValue = true)
+     var queue by rememberPreference(LiquidGlassQueueKey, defaultValue = true)
++    var equalizer by rememberPreference(LiquidGlassEqualizerKey, defaultValue = true)
+     var intensity by rememberPreference(LiquidGlassIntensityKey, defaultValue = 0.5f)
+ 
+     val on = enabled && liquidGlassSupported
+@@ -111,6 +113,12 @@ fun LiquidGlassSettings(
+                 checked = queue,
+                 onCheckedChange = { queue = it },
+             )
++            SwitchPreference(
++                title = { Text(stringResource(R.string.liquid_glass_equalizer)) },
++                isEnabled = on,
++                checked = equalizer,
++                onCheckedChange = { equalizer = it },
++            )
+         }
+ 
+         SettingsGroup(title = stringResource(R.string.liquid_glass_look)) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/utils/GlassBackdrop.kt b/app/src/main/java/com/dd3boh/outertune/ui/utils/GlassBackdrop.kt
+index 03d4517..bb05074 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/utils/GlassBackdrop.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/utils/GlassBackdrop.kt
+@@ -44,7 +44,7 @@ val LocalAppBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
+ 
+ /** Which glass is switched on, and how strong. Provided by MainActivity next to [LocalAppBackdrop]. */
+ @Immutable
+-data class GlassConfig(val dock: Boolean = true, val topBar: Boolean = true, val fab: Boolean = true, val controls: Boolean = true, val queue: Boolean = true, val intensity: Float = 0.5f)
++data class GlassConfig(val dock: Boolean = true, val topBar: Boolean = true, val fab: Boolean = true, val controls: Boolean = true, val queue: Boolean = true, val intensity: Float = 0.5f, val equalizer: Boolean = true)
+ 
+ val LocalGlassConfig = staticCompositionLocalOf { GlassConfig() }
+ 
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index e450437..221240c 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -318,6 +318,7 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="liquid_glass_title">Liquid glass</string>
+     <string name="liquid_glass_summary">Frosted, refracting panels for the mini player, tabs and top bar</string>
+     <string name="liquid_glass_unsupported">Needs Android 13 or newer.</string>
++    <string name="liquid_glass_equalizer">Equalizer panel</string>
+     <string name="liquid_glass_where">Where to use it</string>
+     <string name="liquid_glass_look">Look</string>
+     <string name="liquid_glass_enable">Enable liquid glass</string>
+-- 
+2.43.0
+
+
+From 00b554477307fb3f06812701e0cea84906b6e623 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 22 Nov 2026 16:56:13 +0800
+Subject: [PATCH 39/39] BackButton: dp import
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../main/java/com/dd3boh/outertune/ui/component/BackButton.kt    | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/BackButton.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/BackButton.kt
+index 1d6b719..947919f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/BackButton.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/BackButton.kt
+@@ -17,6 +17,7 @@ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.ui.component.button.IconButton
 -- 
 2.43.0
 
