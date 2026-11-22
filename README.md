@@ -71,7 +71,7 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 
 ### Lyrics
 
-- Features word-synced lyrics on most songs, from BetterLyrics, QQMusic, Musixmatch word-synced and YouLy+
+- Features word-synced lyrics on most songs, from BetterLyrics, QQMusic, LRCLIB word-synced and YouLy+
 - Uses LrcLib and KuGou as backup line-synced providers
 - Features an innovative lyrics interpolation engine for accurate word-synced lyrics interpolated from line-synced data
 - Lyrics are queried in parallel to improve loading speeds
