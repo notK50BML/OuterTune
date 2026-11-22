@@ -11,16 +11,15 @@ A music player which puts your personalised experience above all else. This app 
 
 Note: This app is currently in maintenance mode. Proper development of this app will continue in 2027, and fixes will be slower, but the app is currently already in a stable state (and all the more recent releases are mainly improvements and minor fixes).
 
-The Windows application will soon be migrated to this [new repository](https://github.com/notK50BML/OuterTune-for-Windows). 
+The Windows application will soon be migrated to this [new repository](https://github.com/notK50BML/OuterTune-for-Windows) (not public yet). 
 
 I really, really need a cat.
 
 > [!NOTE]
-> This is a fork based on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/AsterTune), a fork of the original OuterTune repository.
+> This is a fork based on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/AsterTune), a fork of the original OuterTune repository. Credits and attributions to the many helpful projects and repositories are down below
 >
-> While APKs would be uploaded, beta or nightly releases are rare in APK form. If you want to get a fix for a problem as soon as possible or try out new features, please read the [wiki](https://github.com/notK50BML/OuterTune/wiki/Getting-started) for instructions on how to compile the APK yourself.
->
-> I am also currently working on a Windows build of this app, so it is quite possible that Android development may slow down a bit. To be honest though, this app already has more than enough features for most people, so adding more is probably counter-productive anyway. Of course, the Android branch will still continue to receive maintenance updates and new features, but some time would be spent on the new Windows build.
+> If you want to build the app yourself, clone the repository and run the "Build new APKs" workflow. Ensure that the patch being applied is called outertune-metrolist-engine.patch.
+
 
 
 ## What This Fork Improves
@@ -41,16 +40,17 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Fixed a bug where the devices will fall out of sync because of lag from the host-side device
 - Added a feature to correct for the delay in the devices playing songs, tunable to a few milliseconds
 - Improved pipeline to reduce drop-outs
+- Experimental dual-phone stereo speaker system using listen together
+- Automatic calibration before the start of a session (optional)
 
 ### Discord Rich Presence
-- Added rich presence (huge thanks to [reocat](https://github.com/reocat/OuterTune))
-- Added clickable song and artist
-- Added song cover and artist icon
-- Added a working progress bar
-- Added token login along with normal login
-- Added connection tester to diagnose any connection issues
-- Improved normal login authentication process
-- Fixed a bug where extremely short songs or songs with no artists would not display their rich presence cards
+- Spotify-style rich presence (huge thanks to [reocat](https://github.com/reocat/OuterTune))
+- Clickable song and artist
+- Song cover and artist icon
+- Progress bar and song length, and your current time in the song
+- Ability to paste a token or login normally
+- Connection tester to diagnose any connection issues
+
 
 ### YouTube Music
 
@@ -66,24 +66,26 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Improved artist linking through fetching albums, splitting artists for Youtube songs, resolving duplicate names, and other techniques
 - Improved artist image placement by rendering a square picture and realigning (thanks to [Metrolist](https://github.com/metrolistgroup/metrolist))
 - Fixed a bug where only some songs would be added to a Youtube-synced playlist
-- Added the High Frequency Restoration feature, which is helpful slightly improving quality of less detailed streamed songs
+- High Frequency Restoration, which is helpful in slightly improving quality of less detailed streamed songs
+- Sleep timer that fades out and fully stops playback
 
 ### Lyrics
 
-- Features word-synced lyrics on most songs, from BetterLyrics and QQMusic
+- Features word-synced lyrics on most songs, from BetterLyrics, QQMusic, Musixmatch word-synced and YouLy+
 - Uses LrcLib and KuGou as backup line-synced providers
 - Features an innovative lyrics interpolation engine for accurate word-synced lyrics interpolated from line-synced data
 - Lyrics are queried in parallel to improve loading speeds
 - Lyrics are fetched in the background, and can be cached and edited
 - Offset settings in 10ms or 50ms increments
 - Smart cleanup of YouTube subtitle lyrics to improve readability
+- Ability to reorder provider priority
 
 ### Navigation and menus
 
 - Adjusted bottom navigation so tab switching and re-tapping the active tab behave more naturally
 - Fixed issues with the search bar, sorting, and list refreshes on the Folders screen
 - Replaced the persistent search bar on tab screens with a top icon row (search, stats, and settings)
-- Added swipe-to-skip to the mini player
+- Swipe-to-skip to the mini player
 
 ### Local music
 
@@ -109,23 +111,26 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 
 - Improved the tablet UI
 - Automatically detects the system contrast setting on Android 14 and later
-- Added custom accent colours
-- Added a "keep audio focus" player setting
+- Custom accent colours
+- A "keep audio focus" player setting
 - Added a home screen grid showing your recent YouTube Music activity when signed in
 - Added the current queue's name to the player's queue handle
-- Replaced the account icon with the signed-in account's profile image
+- Account icon is now the signed-in account's profile image
 - Reorganised the settings screens, merging Appearance and Interface into "Appearance and controls" and adding a top-level Privacy screen
-- Added Frosted Glass and Liquid player themes, along with a toggle for contrasting text for accessibility.
+- Frosted Glass and Liquid player themes, along with a toggle for contrasting text for accessibility.
 - Significantly revamped Liquid player theme by adding audio-reactive features
+- Raymarched ferrofluid reactive audio renderer for more powerful devices
 - Note: some features require Android 13+ support, and will be marked as such in settings
 - Made the default English locale British English for better consistency
-- Improved performance for the Liquid Ferrofluid's raymarched renderer and added quality settings
+- Liquid glass is available on some surfaces, though it can be selectively turned off
 
 ### Downloads
 
-- Added a sleep timer that fades out and fully stops playback
 - Wi-Fi-only download option
 - Reduced fetch time for uncached songs
+- Easy 1-click option to clear downloads
+- Playlists improved to better show the status of downloading songs
+- Notifications when downloads fail
 
 
 
@@ -141,6 +146,7 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - A Google Firebase cloud database allows anyone to send syncs between authenticated devices
 - Authentication requires typing in an 8-digit code into your host device
 - Detailed setup instructions can be found in the [wiki](https://github.com/notK50BML/OuterTune/wiki/Setting-Up-Cross%E2%80%90Device-Sync)
+- Sync only queries the database website, so the app is still 100% open source
 
 
 ### Internal libraries and build tooling
