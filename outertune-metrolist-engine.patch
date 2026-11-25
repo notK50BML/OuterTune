@@ -1,7 +1,7 @@
 From 5e80648c172d424b37753f0535c6e2d353e074df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:19:43 +0800
-Subject: [PATCH 01/54] Android: the Local tab gets Stats, Settings and Account
+Subject: [PATCH 01/57] Android: the Local tab gets Stats, Settings and Account
  like Home
 
 With the Search tab on, the tabs have no bar across the top, so Home puts
@@ -66,7 +66,7 @@ index 7057102..dd43b8e 100644
 From 1445e31580e458755f53d1410c921e517538311c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 02/54] Android Local tab: chips stay at the top, search and
+Subject: [PATCH 02/57] Android Local tab: chips stay at the top, search and
  layout move into the header
 
 With the Search tab on nothing else is across the top, so the chips (and
@@ -244,7 +244,7 @@ index dd43b8e..e782829 100644
 From 8bc5e3489c1eea7321d99f89325ee8835f326386 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 03/54] Widget lyrics: redraw when the next word is due, not
+Subject: [PATCH 03/57] Widget lyrics: redraw when the next word is due, not
  once a second
 
 The widget was redrawn on a fixed second, so a word lit up to a second after
@@ -359,7 +359,7 @@ index 305c846..e555cbd 100644
 From dececfb353d3b70d287f8e042a525ac774297b15 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:26:33 +0800
-Subject: [PATCH 04/54] Home: Stats, Settings and Account sit on the Recent
+Subject: [PATCH 04/57] Home: Stats, Settings and Account sit on the Recent
  activity row
 
 With the Search tab on they were at the end of the chips row at the very
@@ -438,7 +438,7 @@ index 188dd20..2e7c44b 100644
 From fe1d90be991f7d1d35d33e5a30ae9ee3b92142a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:27:39 +0800
-Subject: [PATCH 05/54] Home: icons move to the Recent activity row only when
+Subject: [PATCH 05/57] Home: icons move to the Recent activity row only when
  the chips are hidden
 
 With the chips shown, Stats / Settings / Account stay at the end of the
@@ -476,7 +476,7 @@ index 2e7c44b..97265f8 100644
 From 665e3407905b79e776f41e5a4868fdb06fefb0e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:31:07 +0800
-Subject: [PATCH 06/54] Streams: try every visionOS identity, so one being
+Subject: [PATCH 06/57] Streams: try every visionOS identity, so one being
  closed does not cost the client
 
 Only VISIONOS was in the playback chains; VISIONOS_0_1 existed but was used
@@ -587,7 +587,7 @@ index 9fa09c8..b7e6b9d 100644
 From 45288afae5eedc09d15dec8a24f219f13a9b07ff Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:59:41 +0800
-Subject: [PATCH 07/54] Local tab: count it as a top-level page, so it gets the
+Subject: [PATCH 07/57] Local tab: count it as a top-level page, so it gets the
  top bar or loses its height
 
 The top bar (search, Stats, Settings, Account) and its reserved height were
@@ -694,7 +694,7 @@ index e7b8f84..1a0f38e 100644
 From 18ed6c865483771adbff0cdd8b3d36d5f696ca25 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 18 Nov 2026 21:28:57 +0800
-Subject: [PATCH 08/54] Desktop mini player lyrics follow the Fade / Sweep
+Subject: [PATCH 08/57] Desktop mini player lyrics follow the Fade / Sweep
  setting
 
 The line being sung in the mini player always lit its words with the
@@ -861,7 +861,7 @@ index 6f8516a..7c40263 100644
 From 3129581ba5730a051407789656cc3152523538dd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:24:59 +0800
-Subject: [PATCH 09/54] Widget lyrics: highlight style and smooth-word
+Subject: [PATCH 09/57] Widget lyrics: highlight style and smooth-word
  settings, lit by stage within a word
 
 The widget lit a whole word at once. Words now carry their end times, and
@@ -1251,7 +1251,7 @@ index 4a08bf5..7b86071 100644
 From 2446dd8084d2c684b52868fa509ad1f991807523 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:30:04 +0800
-Subject: [PATCH 10/54] Add Simple reactive player background (ported from
+Subject: [PATCH 10/57] Add Simple reactive player background (ported from
  InterTune's Living blur)
 
 Cover reduced to soft colour patches that move with the music, driven by an
@@ -4085,7 +4085,7 @@ index 1bd80ea..b2ab9d7 100644
 From 6efc00004937c393e91dafd102c663636991694f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:34:41 +0800
-Subject: [PATCH 11/54] Port InterTune radio fixes: dotted song lengths and
+Subject: [PATCH 11/57] Port InterTune radio fixes: dotted song lengths and
  signed-out account id
 
 parseTime reads 3.34 as well as 3:34 (Indonesian, Finnish, Danish), so radios and
@@ -4318,7 +4318,7 @@ index 8b44a6e..55fc6f9 100644
 From 722dbcaa4932a81a7a92b879717db447649846b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:34:54 +0800
-Subject: [PATCH 12/54] Radio pages add only songs the queue has not already
+Subject: [PATCH 12/57] Radio pages add only songs the queue has not already
  had
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -4399,7 +4399,7 @@ index 3e0ddcd..cbd6e59 100644
 From 0eeff7214979b8dc9a67b766fac27af17e743f81 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:35:31 +0800
-Subject: [PATCH 13/54] Widget lyrics: a new line slides up into place in
+Subject: [PATCH 13/57] Widget lyrics: a new line slides up into place in
  stages instead of jumping
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -4521,7 +4521,7 @@ index cd8c958..4064b7d 100644
 From 74e445a8e832b1ccfe0072c35b60a2445dedd921 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 15:41:01 +0800
-Subject: [PATCH 14/54] Discord presence: clear before closing and start each
+Subject: [PATCH 14/57] Discord presence: clear before closing and start each
  session from an empty card (from Metrolist)
 
 Closing the app or rebuilding the connection now clears the activity first, bounded to
@@ -4788,7 +4788,7 @@ index 995871d..1776e46 100644
 From 26123a4eb463919897d6e6e56a95e62c9171b8e1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 15:41:30 +0800
-Subject: [PATCH 15/54] AutoEQ: match one headphone to another (EQ Studio and
+Subject: [PATCH 15/57] AutoEQ: match one headphone to another (EQ Studio and
  Settings > Equaliser)
 
 Pick the headphones in use and the pair to imitate; the difference of their AutoEQ
@@ -5108,7 +5108,7 @@ index b2ab9d7..bbba72a 100644
 From 9dfc2bfdbf1e29313f9ea536f06794d1b51cb9e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 17:12:59 +0800
-Subject: [PATCH 16/54] Fix the Simple reactive colours string: escape the
+Subject: [PATCH 16/57] Fix the Simple reactive colours string: escape the
  apostrophe (aapt refused the resource)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5137,7 +5137,7 @@ index bbba72a..920c0f2 100644
 From 3fd6086a13929d77938168d97cc6bc1f4c8c97f6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 18:50:10 +0800
-Subject: [PATCH 17/54] Widget lyrics style preference: EnumListPreference
+Subject: [PATCH 17/57] Widget lyrics style preference: EnumListPreference
  needs its icon argument
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5165,7 +5165,7 @@ index bbfe850..58883cf 100644
 From 1228f794fb13cd5b836e88a7522cdd03a3eab860 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 19:39:16 +0800
-Subject: [PATCH 18/54] Default music player: MainActivity answers
+Subject: [PATCH 18/57] Default music player: MainActivity answers
  MAIN/MUSIC_PLAYER/APP_MUSIC and audio VIEW; scan folders compared as folders,
  not as text
 
@@ -5304,7 +5304,7 @@ index 57b2cdf..99da1fb 100644
 From d724de8ed967cfdf9e495e84c0a7086ce41328ea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 19/54] Links: a link that starts the app is followed, and
+Subject: [PATCH 19/57] Links: a link that starts the app is followed, and
  YouTube Music album/artist and shorts links open
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5408,7 +5408,7 @@ index 604815d..709d82e 100644
 From ced9b87f3edadf7716cb04509e985c145b81866e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 20/54] Widget: cached cover and seek bar, eased line slide,
+Subject: [PATCH 20/57] Widget: cached cover and seek bar, eased line slide,
  and spare height on tall widgets goes to the lyrics
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5588,7 +5588,7 @@ index 0000000..0e7ab96
 From cd8a5cfaa72b761724db87156637d5283b5117e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 21/54] AutoEQ matching reuses the AutoEQ search dialog instead
+Subject: [PATCH 21/57] AutoEQ matching reuses the AutoEQ search dialog instead
  of a second copy
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5967,7 +5967,7 @@ index 920c0f2..ecb8dfb 100644
 From 536864aff7e04d97ae13e39260b49dd1ce6a31e4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:58:51 +0800
-Subject: [PATCH 22/54] AutoEQ: search the full database by source, add
+Subject: [PATCH 22/57] AutoEQ: search the full database by source, add
  Databases dialog; add open-links settings entry
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6537,7 +6537,7 @@ index ecb8dfb..37e6249 100644
 From fb9e099ea590c38ba344dd324f4ca96ec8227fe8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 21:36:03 +0800
-Subject: [PATCH 23/54] Fix crash opening AutoEQ Databases: bound the list
+Subject: [PATCH 23/57] Fix crash opening AutoEQ Databases: bound the list
  height
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6566,7 +6566,7 @@ index a2a12ce..a107833 100644
 From 48813c093df86596d6083dc1b965e385e1e78356 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 18:47:45 +0800
-Subject: [PATCH 24/54] BetterLyrics: fall back to the older host when the new
+Subject: [PATCH 24/57] BetterLyrics: fall back to the older host when the new
  one has nothing
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6661,7 +6661,7 @@ index 803d169..6f0392c 100644
 From 63b032bc02e4c44a72dc73fbb7d0b7cf7bbeb368 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 18:55:06 +0800
-Subject: [PATCH 25/54] BetterLyrics: log which host answered each lookup
+Subject: [PATCH 25/57] BetterLyrics: log which host answered each lookup
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -6721,7 +6721,7 @@ index 6f0392c..888576c 100644
 From cc4df1cc9b2463c3d72240ed0a84ec50a8795312 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:12:00 +0800
-Subject: [PATCH 26/54] Tickable, reorderable icons beside and in the search
+Subject: [PATCH 26/57] Tickable, reorderable icons beside and in the search
  field; replace the identify button placement
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -7192,7 +7192,7 @@ index 37e6249..728db04 100644
 From ffa9d4f35559ab03ae2dbe31b7b9e2218d71fca0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:17:40 +0800
-Subject: [PATCH 27/54] Liquid glass: joined mini player and tabs panel, top
+Subject: [PATCH 27/57] Liquid glass: joined mini player and tabs panel, top
  bar pill, Appearance settings
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -7856,7 +7856,7 @@ index d3954fa..b65c0b4 100644
 From 14cb6b7820bddfc9d0a8f183b16880d4e63dfc7a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:20:52 +0800
-Subject: [PATCH 28/54] Liquid glass for floating buttons through a glass host,
+Subject: [PATCH 28/57] Liquid glass for floating buttons through a glass host,
  with its own toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -8259,7 +8259,7 @@ index b380a56..2332d60 100644
 From 29d9a70019b04af3efa690974d6db14777ef4774 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 10:13:40 +0800
-Subject: [PATCH 29/54] Fix compile errors in liquid glass dialog and icon
+Subject: [PATCH 29/57] Fix compile errors in liquid glass dialog and icon
  lists
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -8323,7 +8323,7 @@ index 8a4baa9..5769e86 100644
 From 2bed81fc87cc6aec7ff6fde8d9d0687352fa347c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 10:15:05 +0800
-Subject: [PATCH 30/54] Liquid glass back buttons with their own toggle
+Subject: [PATCH 30/57] Liquid glass back buttons with their own toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -9400,7 +9400,7 @@ index 2332d60..7796d6c 100644
 From b7f85254e7dc63e58e4b41cb1e6b011fe23f9ec4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 11:11:43 +0800
-Subject: [PATCH 31/54] Liquid glass: remaining back buttons, queue bar pane
+Subject: [PATCH 31/57] Liquid glass: remaining back buttons, queue bar pane
  over the list, queue toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -9882,7 +9882,7 @@ index 7796d6c..12aa376 100644
 From fd9788e0e05c5c5f43f941c48fa3273c96a4b772 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 11:29:23 +0800
-Subject: [PATCH 32/54] Fix missing imports in BottomSheet and Queue
+Subject: [PATCH 32/57] Fix missing imports in BottomSheet and Queue
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -9923,7 +9923,7 @@ index 07895f0..91af733 100644
 From 77c69cd1b30740dc90c1110624222fc638bd7480 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:08:42 +0800
-Subject: [PATCH 33/54] Liquid glass: queue pane above system buttons, hosted
+Subject: [PATCH 33/57] Liquid glass: queue pane above system buttons, hosted
  controls clip and fade with their screen, glass like/share, settings as a
  screen
 
@@ -10440,7 +10440,7 @@ index 12aa376..e450437 100644
 From af858be045c5b3aa51321e61c052edef565ed4d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:09:35 +0800
-Subject: [PATCH 34/54] Add LyricsPlus (YouLy+) as a lyrics provider
+Subject: [PATCH 34/57] Add LyricsPlus (YouLy+) as a lyrics provider
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -10693,7 +10693,7 @@ index 0000000..339ff43
 From 416154c4103fbd8ed69cb5097feb37f84e5d2f9e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:10:20 +0800
-Subject: [PATCH 35/54] Lyrics: search with InterTune's cleaned title, album
+Subject: [PATCH 35/57] Lyrics: search with InterTune's cleaned title, album
  and first artist; ask boidu host first
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -10884,7 +10884,7 @@ index 888576c..aa36196 100644
 From b078b11df5066c9b6304cd50a57526c984554066 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 19:13:03 +0800
-Subject: [PATCH 36/54] LRCLIB: read the new word-synced lyricsfile
+Subject: [PATCH 36/57] LRCLIB: read the new word-synced lyricsfile
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11099,7 +11099,7 @@ index 35e4ca2..2ab36fe 100644
 From ce77d2040daef1c7d9f896e55d369fca586548da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 19:21:01 +0800
-Subject: [PATCH 37/54] LRCLIB word-synced lyrics as their own provider
+Subject: [PATCH 37/57] LRCLIB word-synced lyrics as their own provider
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11252,7 +11252,7 @@ index 5ed5d86..aff13a2 100644
 From 3e6101c778bfd2f2658efe593e35cdd1433c9bb5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 16:56:05 +0800
-Subject: [PATCH 38/54] Liquid glass for the equalizer cards (with a settings
+Subject: [PATCH 38/57] Liquid glass for the equalizer cards (with a settings
  toggle); denser glass back buttons with theme-coloured icons
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -11520,7 +11520,7 @@ index e450437..221240c 100644
 From 00b554477307fb3f06812701e0cea84906b6e623 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 16:56:13 +0800
-Subject: [PATCH 39/54] BackButton: dp import
+Subject: [PATCH 39/57] BackButton: dp import
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11547,7 +11547,7 @@ index 1d6b719..947919f 100644
 From bd14a6da2ce7fd174cd544743a946050ce564957 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:05:24 +0800
-Subject: [PATCH 40/54] Precache the next N songs (slider, default 2) and
+Subject: [PATCH 40/57] Precache the next N songs (slider, default 2) and
  smooth notification ducking
 
 Both under Settings > Experimental.
@@ -11913,7 +11913,7 @@ index a753533..724b8f5 100644
 From 1db9f4a71152dd083f3ae6f83481091950d0c106 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:07:19 +0800
-Subject: [PATCH 41/54] Retry unavailable tracks under the ID YouTube Music now
+Subject: [PATCH 41/57] Retry unavailable tracks under the ID YouTube Music now
  serves (resolve_url, from innertubex 0.11.9)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12035,7 +12035,7 @@ index 0000000..fd28551
 From 6da132ac1d6253b2f74d5c02b9629bef070f8ab7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:18:03 +0800
-Subject: [PATCH 42/54] Hold the next button to preview the next song (with
+Subject: [PATCH 42/57] Hold the next button to preview the next song (with
  optional label)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12319,7 +12319,7 @@ index 626cc45..9e4f62f 100644
 From ccb9a10362943d182a05ec6b8ca8802c4a60713d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:26:38 +0800
-Subject: [PATCH 43/54] Fix combine() arity: fold duck and preview factors into
+Subject: [PATCH 43/57] Fix combine() arity: fold duck and preview factors into
  one flow
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12354,7 +12354,7 @@ index 169a2d8..3c42823 100644
 From 9761e33a3b322a1c81f97ce32db58aa2e5c99a19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 23 Nov 2026 10:44:29 +0800
-Subject: [PATCH 44/54] Preview label: a small translucent Previewing pill,
+Subject: [PATCH 44/57] Preview label: a small translucent Previewing pill,
  like the lyrics-type tag
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12438,7 +12438,7 @@ index d365d6f..b1d4303 100644
 From b82921fd516f5d2681def9ab731a8798644bc20c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 23 Nov 2026 11:09:46 +0800
-Subject: [PATCH 45/54] Liquid glass for the settings search field
+Subject: [PATCH 45/57] Liquid glass for the settings search field
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -12505,7 +12505,7 @@ index 8ad67eb..3b606e7 100644
 From ea78f14b7c71abfe166d516c7c923d4281786111 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 11:35:45 +0800
-Subject: [PATCH 46/54] Equaliser: a draggable scrollbar over the curve for the
+Subject: [PATCH 46/57] Equaliser: a draggable scrollbar over the curve for the
  band strip
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12669,7 +12669,7 @@ index 1485d1a..9cd2a6d 100644
 From 29bbd2fb73f5433befe2d70ef4e18539d8a5e426 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 12:18:35 +0800
-Subject: [PATCH 47/54] Equaliser scrollbar: a visible track behind the thumb
+Subject: [PATCH 47/57] Equaliser scrollbar: a visible track behind the thumb
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -12706,7 +12706,7 @@ index 9cd2a6d..f686388 100644
 From ae6465ae7eb4e13571a213cd193a66d6dbaf872b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 12:48:15 +0800
-Subject: [PATCH 48/54] Equaliser scrollbar: sit between the curve's dotted
+Subject: [PATCH 48/57] Equaliser scrollbar: sit between the curve's dotted
  lines
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12781,7 +12781,7 @@ index f686388..9ca8a21 100644
 From c0d7b11fb00c3e3d7241203d5ef76da4d585bde5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 17:21:28 +0800
-Subject: [PATCH 49/54] Android: ducking and precache on by default, ordered
+Subject: [PATCH 49/57] Android: ducking and precache on by default, ordered
  with the slider under precache, better icons; balance works with the
  equaliser off
 
@@ -12937,7 +12937,7 @@ index 9e4f62f..0363e15 100644
 From 29cd2ce527c60dd9caa8cb8607f53968b2907788 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 09:15:25 +0800
-Subject: [PATCH 50/54] Android: Settings can't vanish from both icon lists,
+Subject: [PATCH 50/57] Android: Settings can't vanish from both icon lists,
  Like in player menu, update notification that opens the updater and downloads
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13292,7 +13292,7 @@ index 221240c..c3e0dfb 100644
 From 1b96708c00d6a0862f76610cb97aaf5b86395299 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 09:21:01 +0800
-Subject: [PATCH 51/54] Android: player menu skips buttons already on the row;
+Subject: [PATCH 51/57] Android: player menu skips buttons already on the row;
  prompt when Settings icon is locked
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13473,7 +13473,7 @@ index c3e0dfb..7a63e4a 100644
 From 28afe12a7ae3a0119885dc62316ae9c3b44f499e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 09:25:56 +0800
-Subject: [PATCH 52/54] Android: update notification frequency slider
+Subject: [PATCH 52/57] Android: update notification frequency slider
  (always/30m/1h/2h/4h/never), background worker
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13730,7 +13730,7 @@ index b6bb84b..ba5b165 100644
 From 7835b5fc15fb9c5c0e6d878fd1d7982af6616886 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 10:11:34 +0800
-Subject: [PATCH 53/54] Queue: last song clears the glass controls bar (measure
+Subject: [PATCH 53/57] Queue: last song clears the glass controls bar (measure
  its full footprint)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13772,7 +13772,7 @@ index 28acf08..632fff9 100644
 From de2fb368983f8c09f90ca8606f2940da9a380225 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 12:08:21 +0800
-Subject: [PATCH 54/54] Fix unescaped apostrophe in settings_icon_cannot_hide
+Subject: [PATCH 54/57] Fix unescaped apostrophe in settings_icon_cannot_hide
  string
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13794,6 +13794,849 @@ index 7a63e4a..0d04fd7 100644
      <string name="update_notification_channel">App updates</string>
      <string name="update_notification_text">Tap to download it, then confirm the install.</string>
      <string name="update_available">New release available — %1$s</string>
+-- 
+2.43.0
+
+
+From d04ffb2937a10c6de757b48938c079222c6c99e0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 17:16:27 +0800
+Subject: [PATCH 55/57] Audio: limiter after the pitch shifter, so pitched-up
+ loud tracks do not clip
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/audio/PostPitchLimiter.kt       | 110 ++++++++++++++++++
+ .../dd3boh/outertune/playback/MusicService.kt |  26 +++--
+ 2 files changed, 128 insertions(+), 8 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/audio/PostPitchLimiter.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/audio/PostPitchLimiter.kt b/app/src/main/java/com/dd3boh/outertune/audio/PostPitchLimiter.kt
+new file mode 100644
+index 0000000..688bc4b
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/audio/PostPitchLimiter.kt
+@@ -0,0 +1,110 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.audio
++
++import androidx.media3.common.C
++import androidx.media3.common.PlaybackParameters
++import androidx.media3.common.audio.AudioProcessor
++import androidx.media3.common.audio.AudioProcessor.AudioFormat
++import androidx.media3.common.audio.AudioProcessor.StreamMetadata
++import androidx.media3.common.audio.BaseAudioProcessor
++import androidx.media3.common.util.UnstableApi
++import androidx.media3.exoplayer.audio.DefaultAudioSink
++import java.nio.ByteBuffer
++
++/**
++ * A last limiter, after the pitch shifter.
++ *
++ * The equaliser's limiter sits at the front of the chain; ExoPlayer's tempo and pitch stage
++ * (Sonic) comes after it. Shifting pitch is overlap-add plus resampling, and both can put a peak
++ * above what went in - overlapped periods add, resampling draws new curves between samples - so a
++ * track the equaliser had left at -1 dBFS came out of the shifter over full scale, with nothing
++ * left to catch it but the 16-bit conversion's hard clip. That clip is the crunch on pitched-up
++ * songs, worst on loud masters.
++ *
++ * This stage is a bit-exact copy while speed and pitch are both 1, so normal playback is
++ * untouched. Once either changes it runs the same look-ahead, true-peak [PeakLimiter] the
++ * equaliser uses, which lowers gain rather than bending the wave.
++ */
++class PostPitchLimiter : BaseAudioProcessor() {
++    private val limiter = PeakLimiter()
++    private var frame = FloatArray(0)
++
++    @Volatile
++    private var resetPending = false
++
++    /** Whether tempo or pitch is off 1. Set by [LimitedAudioProcessorChain]. */
++    @Volatile
++    var enabled = false
++        set(value) {
++            if (field != value) resetPending = true
++            field = value
++        }
++
++    override fun onConfigure(inputAudioFormat: AudioFormat): AudioFormat {
++        limiter.configure(inputAudioFormat.sampleRate, inputAudioFormat.channelCount)
++        if (frame.size != inputAudioFormat.channelCount) frame = FloatArray(inputAudioFormat.channelCount.coerceAtLeast(0))
++        return inputAudioFormat
++    }
++
++    override fun queueInput(inputBuffer: ByteBuffer) {
++        val size = inputBuffer.remaining()
++        if (size == 0) return
++        val out = replaceOutputBuffer(size)
++        val encoding = inputAudioFormat.encoding
++        val channels = inputAudioFormat.channelCount
++        val supported = encoding == C.ENCODING_PCM_16BIT || encoding == C.ENCODING_PCM_FLOAT
++        if (!enabled || !supported || channels <= 0) {
++            out.put(inputBuffer)
++            out.flip()
++            return
++        }
++        if (resetPending) {
++            resetPending = false
++            limiter.reset()
++        }
++        val bytes = if (encoding == C.ENCODING_PCM_FLOAT) 4 else 2
++        while (inputBuffer.remaining() >= bytes * channels) {
++            for (c in 0 until channels) {
++                frame[c] = if (bytes == 4) inputBuffer.getFloat() else inputBuffer.getShort() / 32768f
++            }
++            limiter.process(frame)
++            for (c in 0 until channels) {
++                if (bytes == 4) out.putFloat(frame[c])
++                else out.putShort((frame[c] * 32767f).let { Math.round(it) }.coerceIn(-32768, 32767).toShort())
++            }
++        }
++        out.put(inputBuffer) // a partial trailing frame, untouched
++        out.flip()
++    }
++
++    override fun onFlush(streamMetadata: StreamMetadata) {
++        limiter.reset()
++    }
++
++    override fun onReset() {
++        limiter.configure(0, 0)
++    }
++}
++
++/**
++ * [base] with [tail] appended after Sonic, and the tail told whenever tempo or pitch changes.
++ */
++@UnstableApi
++class LimitedAudioProcessorChain(
++    private val base: DefaultAudioSink.DefaultAudioProcessorChain,
++    private val tail: PostPitchLimiter,
++) : DefaultAudioSink.AudioProcessorChain by base {
++    private val processors: Array<AudioProcessor> = base.audioProcessors + tail
++
++    override fun getAudioProcessors(): Array<AudioProcessor> = processors
++
++    override fun applyPlaybackParameters(playbackParameters: PlaybackParameters): PlaybackParameters {
++        tail.enabled = playbackParameters.speed != 1f || playbackParameters.pitch != 1f
++        return base.applyPlaybackParameters(playbackParameters)
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 7d9c542..c92b8f5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -83,6 +83,8 @@ import com.dd3boh.outertune.constants.CrossfadeDurationKey
+ import com.dd3boh.outertune.constants.CrossfadeKey
+ import com.dd3boh.outertune.constants.DiscordTokenKey
+ import com.dd3boh.outertune.audio.EqualizerAudioProcessor
++import com.dd3boh.outertune.audio.LimitedAudioProcessorChain
++import com.dd3boh.outertune.audio.PostPitchLimiter
+ import com.dd3boh.outertune.constants.EqualizerSettingsKey
+ import com.dd3boh.outertune.audio.HarmonicExciter
+ import com.dd3boh.outertune.constants.AudioUpscaling
+@@ -1670,10 +1672,14 @@ class MusicService : MediaLibraryService(),
+                         .setPcmEncodingRestrictionLifted(pcmEncodingRestrictionLifted)
+                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                         .setAudioProcessorChain(
+-                            DefaultAudioSink.DefaultAudioProcessorChain(
+-                                arrayOf<AudioProcessor>(processor),
+-                                SilenceSkippingAudioProcessor(),
+-                                SonicAudioProcessor()
++                            // The limiter after Sonic catches what pitch shifting adds on top.
++                            LimitedAudioProcessorChain(
++                                DefaultAudioSink.DefaultAudioProcessorChain(
++                                    arrayOf<AudioProcessor>(processor),
++                                    SilenceSkippingAudioProcessor(),
++                                    SonicAudioProcessor()
++                                ),
++                                PostPitchLimiter()
+                             )
+                         )
+                         .setAudioOffloadSupportProvider(
+@@ -1700,10 +1706,14 @@ class MusicService : MediaLibraryService(),
+                         .setPcmEncodingRestrictionLifted(pcmEncodingRestrictionLifted)
+                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                         .setAudioProcessorChain(
+-                            DefaultAudioSink.DefaultAudioProcessorChain(
+-                                arrayOf<AudioProcessor>(processor),
+-                                SilenceSkippingAudioProcessor(),
+-                                SonicAudioProcessor()
++                            // The limiter after Sonic catches what pitch shifting adds on top.
++                            LimitedAudioProcessorChain(
++                                DefaultAudioSink.DefaultAudioProcessorChain(
++                                    arrayOf<AudioProcessor>(processor),
++                                    SilenceSkippingAudioProcessor(),
++                                    SonicAudioProcessor()
++                                ),
++                                PostPitchLimiter()
+                             )
+                         )
+                         .setAudioOffloadSupportProvider(
+-- 
+2.43.0
+
+
+From 03bf00cef0aa2ae734076e7622fa7595d8eab688 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 17:19:44 +0800
+Subject: [PATCH 56/57] Playlist import: CSV and text, next to M3U, with
+ matching shared
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/ui/dialog/ImportM3uDialog.kt    | 102 ++++++--
+ .../outertune/ui/dialog/ImportTrackList.kt    | 234 ++++++++++++++++++
+ app/src/main/res/values/strings-ot.xml        |  10 +-
+ 3 files changed, 327 insertions(+), 19 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/dialog/ImportTrackList.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/dialog/ImportM3uDialog.kt b/app/src/main/java/com/dd3boh/outertune/ui/dialog/ImportM3uDialog.kt
+index 6f5e251..6656231 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/dialog/ImportM3uDialog.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/dialog/ImportM3uDialog.kt
+@@ -15,6 +15,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxWidth
+@@ -96,32 +97,58 @@ fun ImportM3uDialog(
+     val importedSongs = remember { mutableStateListOf<Song>() }
+     val rejectedSongs = remember { mutableStateListOf<String>() }
+ 
+-    val importM3uLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
++    var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
++    var showTextDialog by rememberSaveable { mutableStateOf(false) }
++
++    /** Runs one of the importers and shows what it found. */
++    fun launchImport(reportEmpty: Boolean = true, load: suspend () -> ImportResult) {
+         CoroutineScope(lmScannerCoroutine).launch {
+             try {
+                 isLoading = true
+-                if (uri != null) {
+-                    val result = loadM3u(
+-                        context = context,
+-                        database = database,
+-                        snackbarHostState = snackbarHostState,
+-                        uri = uri,
+-                        matchStrength = scannerSensitivity,
+-                        searchOnline = remoteLookup
++                val result = load()
++                importedSongs.clear()
++                importedSongs.addAll(result.first)
++                rejectedSongs.clear()
++                rejectedSongs.addAll(result.second)
++                importedTitle = result.third
++                if (reportEmpty && result.first.isEmpty()) {
++                    snackbarHostState.showSnackbar(
++                        message = context.getString(R.string.import_no_songs),
++                        withDismissAction = true,
++                        duration = SnackbarDuration.Long
+                     )
+-                    importedSongs.clear()
+-                    importedSongs.addAll(result.first)
+-                    rejectedSongs.clear()
+-                    rejectedSongs.addAll(result.second)
+-                    importedTitle = result.third
+                 }
+             } catch (e: Exception) {
+                 reportException(e)
+             } finally {
+                 isLoading = false
++                progress = null
+             }
+         }
++    }
+ 
++    val importM3uLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
++        if (uri != null) launchImport(reportEmpty = false) { // loadM3u reports its own
++            loadM3u(
++                context = context,
++                database = database,
++                snackbarHostState = snackbarHostState,
++                uri = uri,
++                matchStrength = scannerSensitivity,
++                searchOnline = remoteLookup
++            )
++        }
++    }
++    val importCsvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
++        if (uri != null) launchImport {
++            loadCsv(context, database, uri, scannerSensitivity, remoteLookup) { done, total -> progress = done to total }
++        }
++    }
++    val importTextFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
++        showTextDialog = false
++        if (uri != null) launchImport {
++            loadTextFile(context, database, uri, scannerSensitivity, remoteLookup) { done, total -> progress = done to total }
++        }
+     }
+ 
+ 
+@@ -172,16 +199,37 @@ fun ImportM3uDialog(
+                 Spacer(Modifier.width(8.dp))
+             }
+ 
++            progress?.let { (done, total) ->
++                Text("$done / $total", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
++                Spacer(Modifier.width(8.dp))
++            }
++        }
++
++        // One entry per format, worded and laid out the same.
++        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+             Button(
+                 onClick = {
+                     importedSongs.clear()
+                     rejectedSongs.clear()
+                     importM3uLauncher.launch(arrayOf("audio/*"))
+                 },
+-                enabled = !isLoading
+-            ) {
+-                Text(stringResource(R.string.m3u_import_playlist))
+-            }
++                enabled = !isLoading,
++                modifier = Modifier.fillMaxWidth(),
++            ) { Text(stringResource(R.string.m3u_import_playlist)) }
++            Button(
++                onClick = {
++                    importedSongs.clear()
++                    rejectedSongs.clear()
++                    importCsvLauncher.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel"))
++                },
++                enabled = !isLoading,
++                modifier = Modifier.fillMaxWidth(),
++            ) { Text(stringResource(R.string.csv_import_playlist)) }
++            Button(
++                onClick = { showTextDialog = true },
++                enabled = !isLoading,
++                modifier = Modifier.fillMaxWidth(),
++            ) { Text(stringResource(R.string.text_import_playlist)) }
+         }
+ 
+         if (importedSongs.isNotEmpty()) {
+@@ -287,6 +335,24 @@ fun ImportM3uDialog(
+      * ---------------------------
+      */
+ 
++    if (showTextDialog) {
++        ImportTextDialog(
++            onDismiss = { showTextDialog = false },
++            onChooseFile = { importTextFileLauncher.launch(arrayOf("text/*")) },
++            onImport = { pasted ->
++                showTextDialog = false
++                importedSongs.clear()
++                rejectedSongs.clear()
++                launchImport {
++                    val (songs, rejected) = matchTracks(
++                        database, parseTextTracks(pasted), scannerSensitivity, remoteLookup
++                    ) { done, total -> progress = done to total }
++                    Triple(songs, rejected, "")
++                }
++            },
++        )
++    }
++
+     if (showChoosePlaylistDialog) {
+         AddToPlaylistDialog(
+             navController = navController,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/dialog/ImportTrackList.kt b/app/src/main/java/com/dd3boh/outertune/ui/dialog/ImportTrackList.kt
+new file mode 100644
+index 0000000..ef4e19f
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/dialog/ImportTrackList.kt
+@@ -0,0 +1,234 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++package com.dd3boh.outertune.ui.dialog
++
++import android.content.Context
++import android.net.Uri
++import android.widget.Toast
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.heightIn
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.ScannerM3uMatchCriteria
++import com.dd3boh.outertune.db.MusicDatabase
++import com.dd3boh.outertune.db.entities.ArtistEntity
++import com.dd3boh.outertune.db.entities.Song
++import com.dd3boh.outertune.db.entities.SongEntity
++import com.dd3boh.outertune.utils.reportException
++import com.dd3boh.outertune.utils.scanners.LocalMediaScanner
++import com.dd3boh.outertune.utils.scanners.LocalMediaScanner.Companion.compareM3uSong
++import kotlinx.coroutines.flow.first
++
++/** What an import hands back: matched songs, the lines that matched nothing, and a name suggestion. */
++typealias ImportResult = Triple<ArrayList<Song>, ArrayList<String>, String>
++
++/** One wanted song, before it is matched to anything. */
++data class WantedTrack(val title: String, val artists: List<String>, val raw: String)
++
++/**
++ * Reads a CSV playlist: Exportify, Spotify data tools and most "export playlist" sites. The title
++ * and artist columns are found by header name, so column order and extra columns do not matter.
++ *
++ * Returns null when there is no recognisable title column.
++ */
++fun parseCsvTracks(text: String): List<WantedTrack>? {
++    val rows = parseCsvRows(text.removePrefix("﻿"))
++    if (rows.isEmpty()) return emptyList()
++    val header = rows.first().map { it.trim().lowercase() }
++
++    val titleKeys = listOf("track name", "track", "title", "song name", "song", "name")
++    val artistKeys = listOf("artist name(s)", "artist names", "artist name", "artists", "artist")
++    val titleCol = titleKeys.firstNotNullOfOrNull { k -> header.indexOf(k).takeIf { it >= 0 } } ?: return null
++    val artistCol = artistKeys.firstNotNullOfOrNull { k -> header.indexOf(k).takeIf { it >= 0 } }
++
++    return rows.drop(1).mapNotNull { row ->
++        val title = row.getOrNull(titleCol)?.trim().orEmpty()
++        if (title.isEmpty()) return@mapNotNull null
++        val artists = artistCol?.let { row.getOrNull(it) }
++            ?.split(';')?.map { it.trim() }?.filter { it.isNotEmpty() }
++            .orEmpty()
++        WantedTrack(title, artists, row.joinToString(","))
++    }
++}
++
++/**
++ * Reads a plain list: one song per line, `Artist - Title`. Several artists may be separated with
++ * `;`. A line without " - " is taken as a search phrase and matched online as it stands.
++ */
++fun parseTextTracks(text: String): List<WantedTrack> =
++    text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.map { line ->
++        if (" - " in line) {
++            WantedTrack(
++                title = line.substringAfter(" - ").trim(),
++                artists = line.substringBefore(" - ").split(';').map { it.trim() }.filter { it.isNotEmpty() },
++                raw = line,
++            )
++        } else {
++            WantedTrack(title = line, artists = emptyList(), raw = line)
++        }
++    }.toList()
++
++/** RFC 4180 rows: quoted fields, doubled quotes, commas or semicolons or tabs, CRLF or LF. */
++internal fun parseCsvRows(text: String): List<List<String>> {
++    val firstLine = text.lineSequence().firstOrNull().orEmpty()
++    val delimiter = listOf(',', ';', '\t').maxByOrNull { d -> firstLine.count { it == d } }
++        ?.takeIf { d -> firstLine.contains(d) } ?: ','
++    val rows = ArrayList<List<String>>()
++    var row = ArrayList<String>()
++    val field = StringBuilder()
++    var quoted = false
++    var i = 0
++    while (i < text.length) {
++        val c = text[i]
++        when {
++            quoted && c == '"' && text.getOrNull(i + 1) == '"' -> { field.append('"'); i++ }
++            c == '"' -> quoted = !quoted
++            !quoted && c == delimiter -> { row.add(field.toString()); field.clear() }
++            !quoted && (c == '\n' || c == '\r') -> {
++                if (c == '\r' && text.getOrNull(i + 1) == '\n') i++
++                row.add(field.toString()); field.clear()
++                if (row.any { it.isNotBlank() }) rows.add(row)
++                row = ArrayList()
++            }
++            else -> field.append(c)
++        }
++        i++
++    }
++    if (field.isNotEmpty() || row.isNotEmpty()) {
++        row.add(field.toString())
++        if (row.any { it.isNotBlank() }) rows.add(row)
++    }
++    return rows
++}
++
++/**
++ * Matches wanted tracks to songs: the app's own database first, then YouTube Music when
++ * [searchOnline] is on - the same order and the same strictness levels as the M3U import.
++ * A track with no artist is a search phrase, so it skips the database and takes the top online hit.
++ */
++suspend fun matchTracks(
++    database: MusicDatabase,
++    wanted: List<WantedTrack>,
++    matchStrength: ScannerM3uMatchCriteria,
++    searchOnline: Boolean,
++    onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
++): Pair<ArrayList<Song>, ArrayList<String>> {
++    val songs = ArrayList<Song>()
++    val rejected = ArrayList<String>()
++    wanted.forEachIndexed { index, track ->
++        onProgress(index, wanted.size)
++        val mock = Song(
++            song = SongEntity(id = "", title = track.title, isLocal = true),
++            artists = track.artists.map { ArtistEntity("", it) },
++        )
++        var found: Song? = null
++        if (track.artists.isNotEmpty()) {
++            found = database.searchSongsInDb(track.title).first()
++                .firstOrNull { compareM3uSong(mock, it, matchStrength = matchStrength) }
++        }
++        if (found == null && searchOnline) {
++            val online = runCatching {
++                LocalMediaScanner.youtubeSongLookup("${track.title} ${track.artists.joinToString(" ")}".trim(), null)
++            }.onFailure { reportException(it) }.getOrDefault(emptyList()).map { result ->
++                Song(
++                    song = result.toSongEntity(),
++                    artists = result.artists.map {
++                        ArtistEntity(id = it.id ?: ArtistEntity.generateArtistId(), name = it.name)
++                    },
++                )
++            }
++            found = if (track.artists.isEmpty() || matchStrength == ScannerM3uMatchCriteria.LEVEL_0) {
++                online.firstOrNull()
++            } else {
++                online.firstOrNull { compareM3uSong(mock, it, matchStrength = matchStrength) }
++            }
++        }
++        if (found != null && songs.none { it.id == found.id }) songs.add(found)
++        else if (found == null) rejected.add(track.raw)
++    }
++    onProgress(wanted.size, wanted.size)
++    return songs to rejected
++}
++
++/** Loads a CSV file and matches it. */
++suspend fun loadCsv(
++    context: Context,
++    database: MusicDatabase,
++    uri: Uri,
++    matchStrength: ScannerM3uMatchCriteria,
++    searchOnline: Boolean,
++    onProgress: (Int, Int) -> Unit,
++): ImportResult {
++    val text = runCatching {
++        context.applicationContext.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
++    }.onFailure { reportException(it) }.getOrNull().orEmpty()
++    val wanted = parseCsvTracks(text)
++    if (wanted == null) {
++        Toast.makeText(context, R.string.csv_import_no_columns, Toast.LENGTH_LONG).show()
++        return Triple(ArrayList(), ArrayList(), "")
++    }
++    val (songs, rejected) = matchTracks(database, wanted, matchStrength, searchOnline, onProgress)
++    return Triple(songs, rejected, fileTitle(uri))
++}
++
++/** Loads a text file and matches it. */
++suspend fun loadTextFile(
++    context: Context,
++    database: MusicDatabase,
++    uri: Uri,
++    matchStrength: ScannerM3uMatchCriteria,
++    searchOnline: Boolean,
++    onProgress: (Int, Int) -> Unit,
++): ImportResult {
++    val text = runCatching {
++        context.applicationContext.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
++    }.onFailure { reportException(it) }.getOrNull().orEmpty()
++    val (songs, rejected) = matchTracks(database, parseTextTracks(text), matchStrength, searchOnline, onProgress)
++    return Triple(songs, rejected, fileTitle(uri))
++}
++
++private fun fileTitle(uri: Uri) = uri.path?.substringAfterLast('/')?.substringBeforeLast('.') ?: ""
++
++/** A box to paste a list into - what copying a playlist out of another app gives you. */
++@Composable
++fun ImportTextDialog(
++    onDismiss: () -> Unit,
++    onChooseFile: () -> Unit,
++    onImport: (String) -> Unit,
++) {
++    var text by remember { mutableStateOf("") }
++    DefaultDialog(
++        onDismiss = onDismiss,
++        title = { Text(stringResource(R.string.text_import_title)) },
++    ) {
++        Text(stringResource(R.string.text_import_hint), style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
++        OutlinedTextField(
++            value = text,
++            onValueChange = { text = it },
++            modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp, max = 260.dp),
++            placeholder = { Text("Artist - Title") },
++        )
++        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
++            TextButton(onClick = onChooseFile) { Text(stringResource(R.string.text_import_choose_file)) }
++            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
++            TextButton(onClick = { onImport(text) }, enabled = text.isNotBlank()) {
++                Text(stringResource(R.string.text_import_run))
++            }
++        }
++    }
++}
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 0d04fd7..3b96125 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -549,7 +549,15 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="import_success_songs">Successfully imported</string>
+     <string name="m3u_export">Export as M3U file</string>
+     <string name="m3u_import_failed"> "No songs found. Invalid M3U file, or no song matches were found"</string>
+-    <string name="m3u_import_playlist">Import a playlist (m3u)</string>
++    <string name="m3u_import_playlist">Import playlist (M3U)</string>
++    <string name="csv_import_playlist">Import playlist (CSV)</string>
++    <string name="text_import_playlist">Import playlist (text)</string>
++    <string name="csv_import_no_columns">Couldn\'t find a title column. The first row needs headers such as Track Name and Artist Name(s).</string>
++    <string name="import_no_songs">No songs found. The file is empty, or nothing matched.</string>
++    <string name="text_import_title">Import playlist (text)</string>
++    <string name="text_import_hint">One song per line, as Artist - Title. Separate several artists with a semicolon. A line with only a title is searched as it is.</string>
++    <string name="text_import_choose_file">Choose a file</string>
++    <string name="text_import_run">Import</string>
+     <string name="m3u_import_playlist_failed">Failed to import</string>
+     <string name="m3u_ytm_lookup">Search on YouTube Music for songs not found in the app database</string>
+ 
+-- 
+2.43.0
+
+
+From 02b887e11b396a06e7d216c9b78287f6134c529f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 17:31:02 +0800
+Subject: [PATCH 57/57] Equaliser: curve in a rounded container, full-height
+ scroll thumb inside it; Studio shares the panel's strip and container
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/ui/component/EqResponseCurve.kt | 11 ++-
+ .../outertune/ui/player/EqualizerPanel.kt     | 87 ++++++++++++-------
+ .../screens/settings/EqualizerStudioScreen.kt |  9 +-
+ 3 files changed, 72 insertions(+), 35 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/EqResponseCurve.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/EqResponseCurve.kt
+index 08ea15a..5c71b39 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/EqResponseCurve.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/EqResponseCurve.kt
+@@ -72,6 +72,11 @@ fun EqResponseCurve(
+      * against unity), but low is yellow and high is blue throughout.
+      */
+     colorByHeight: Boolean = true,
++    /**
++     * Drawn inside a frame that marks the plot's top and bottom - the highest and lowest values -
++     * so the half-scale dashes, which stood in for them, are left out. The frame is the caller's.
++     */
++    framed: Boolean = false,
+ ) {
+     // Recomputed only when the curve could have changed. Each point is a cascade over every band,
+     // so this is the one part worth not doing per frame - and it does not need to be: the gains
+@@ -115,7 +120,7 @@ fun EqResponseCurve(
+             )
+         }
+ 
+-        drawGrid(gridColor, range, ::yFor)
++        drawGrid(gridColor, range, framed, ::yFor)
+ 
+         val path = Path()
+         val fill = Path()
+@@ -143,9 +148,9 @@ fun EqResponseCurve(
+ }
+ 
+ /** Zero line solid, the half-scale lines dashed, and nothing else - it is a shape, not a chart. */
+-private fun DrawScope.drawGrid(gridColor: Color, range: Float, yFor: (Float) -> Float) {
++private fun DrawScope.drawGrid(gridColor: Color, range: Float, framed: Boolean, yFor: (Float) -> Float) {
+     val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 6.dp.toPx()))
+-    listOf(range / 2f, -range / 2f).forEach { db ->
++    if (!framed) listOf(range / 2f, -range / 2f).forEach { db ->
+         val y = yFor(db)
+         drawLine(
+             color = gridColor.copy(alpha = 0.25f),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index 11d4b3d..050415a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -818,23 +818,20 @@ private fun EqualizerPanelContent(
+                         // say what the filter bank is doing: the bands overlap, so two adjacent
+                         // boosts make one larger hump rather than two small ones, and nothing in a
+                         // row of faders can show that.
+-                        BandScrollbar(bandListState, settings.bands.size) {
+-                        EqResponseCurve(
+-                            // The shelves are in the picture because they are in the sound - this
+-                            // is what makes a bass knob draw the curve rising toward the left edge
+-                            // rather than doing nothing visible at all.
++                        // The shelves are in the picture because they are in the sound - this
++                        // is what makes a bass knob draw the curve rising toward the left edge
++                        // rather than doing nothing visible at all. The panel's own contrast colour,
++                        // not a fixed green, so the picture follows the colour-by-value setting.
++                        EqCurveWithScrollbar(
++                            listState = bandListState,
++                            bandCount = settings.bands.size,
+                             bands = settings.allFilters(),
+                             sampleRate = EQ_GRAPH_SAMPLE_RATE,
+-                            // The panel's own contrast colour, not a fixed green. With
+-                            // colour-by-value off every other control here falls back to this, and
+-                            // the curve staying green made the setting look like it had missed
+-                            // something rather than been applied.
+                             lineColor = eqColor,
+                             fillColor = eqColor,
+                             gridColor = eqColorVariant,
+                             colorByHeight = useValueGradient,
+                         )
+-                        }
+ 
+                         // Last, because it answers "what does all of the above apply to" - which
+                         // is only worth asking once the above has been read.
+@@ -1747,11 +1744,18 @@ private fun BandScrollbar(
+     val scrolled = if (first == null) 0f else (first.index * stride - first.offset).coerceIn(0f, maxScroll)
+ 
+     val backdrop = LocalEqualizerBackdrop.current
+-    val thumbShape = RoundedCornerShape(16.dp)
+-    // The bar itself, which stays put, and the thumb on it, a shade lighter again.
++    // One rounded container with the bar inside it, as in Poweramp. The curve's top and bottom edges
++    // are the highest and lowest values, so the frame is where they are; the thumb is the same
++    // shape, a step smaller to sit inside the frame line, and runs the container's full height.
++    val frameShape = RoundedCornerShape(EQ_FRAME_RADIUS)
++    val thumbShape = RoundedCornerShape(EQ_FRAME_RADIUS - EQ_FRAME_LINE)
+     val trackTint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+     val tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
++    val frameLine = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
++    // The room the thumb has to move in: inside the frame line on both sides.
++    val insetPx = with(density) { EQ_FRAME_LINE.toPx() }
+     var trackWidth by remember { mutableStateOf(0f) }
++    val innerWidth = (trackWidth - 2 * insetPx).coerceAtLeast(1f)
+ 
+     Box(
+         modifier = Modifier
+@@ -1759,9 +1763,9 @@ private fun BandScrollbar(
+             .onSizeChanged { trackWidth = it.width.toFloat() }
+             .then(
+                 if (scrollable) {
+-                    Modifier.pointerInput(maxScroll, trackWidth, viewport, content_) {
+-                        val thumbW = trackWidth * (viewport / content_).coerceIn(0.1f, 1f)
+-                        val travel = (trackWidth - thumbW).coerceAtLeast(1f)
++                    Modifier.pointerInput(maxScroll, innerWidth, viewport, content_) {
++                        val thumbW = innerWidth * (viewport / content_).coerceIn(0.1f, 1f)
++                        val travel = (innerWidth - thumbW).coerceAtLeast(1f)
+                         detectHorizontalDragGestures { change, drag ->
+                             change.consume()
+                             state.dispatchRawDelta(drag * maxScroll / travel)
+@@ -1770,20 +1774,13 @@ private fun BandScrollbar(
+                 } else Modifier
+             ),
+     ) {
+-        if (scrollable && trackWidth > 0f) {
+-            val thumbW = trackWidth * (viewport / content_).coerceIn(0.1f, 1f)
+-            val x = (trackWidth - thumbW) * (scrolled / maxScroll)
+-            // Between the curve's two dotted lines - the middle half of its height, centred on the
+-            // solid zero line - so the bar sits inside the plot rather than being as tall as it.
+-            Box(modifier = Modifier.matchParentSize()) {
+-                Box(
+-                    modifier = Modifier
+-                        .align(Alignment.Center)
+-                        .fillMaxWidth()
+-                        .fillMaxHeight(0.5f)
+-                        .clip(thumbShape)
+-                        .background(trackTint)
+-                ) {
++        // The container: clips the curve to its rounded corners, so a line at the extremes
++        // follows them instead of poking out.
++        Box(modifier = Modifier.fillMaxWidth().clip(frameShape).background(trackTint)) {
++            if (scrollable && trackWidth > 0f) {
++                val thumbW = innerWidth * (viewport / content_).coerceIn(0.1f, 1f)
++                val x = (innerWidth - thumbW) * (scrolled / maxScroll)
++                Box(modifier = Modifier.matchParentSize().padding(EQ_FRAME_LINE)) {
+                     Box(
+                         modifier = Modifier
+                             .offset { IntOffset(x.roundToInt(), 0) }
+@@ -1800,7 +1797,37 @@ private fun BandScrollbar(
+                     )
+                 }
+             }
++            content()
+         }
+-        content()
++        // The frame line, over everything so nothing covers it.
++        Box(modifier = Modifier.matchParentSize().border(EQ_FRAME_LINE, frameLine, frameShape))
++    }
++}
++
++/** The curve in its scrolling container - what the player's panel and the Studio both show under the faders. */
++@Composable
++internal fun EqCurveWithScrollbar(
++    listState: LazyListState,
++    bandCount: Int,
++    bands: List<EqualizerSettings.EqBand>,
++    sampleRate: Int,
++    lineColor: Color,
++    fillColor: Color,
++    gridColor: Color,
++    colorByHeight: Boolean,
++) {
++    BandScrollbar(listState, bandCount) {
++        EqResponseCurve(
++            bands = bands,
++            sampleRate = sampleRate,
++            lineColor = lineColor,
++            fillColor = fillColor,
++            gridColor = gridColor,
++            colorByHeight = colorByHeight,
++            framed = true,
++        )
+     }
+ }
++
++private val EQ_FRAME_RADIUS = 16.dp
++private val EQ_FRAME_LINE = 1.dp
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
+index 38b8ec9..13da3d5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
+@@ -6,7 +6,9 @@
+ 
+ package com.dd3boh.outertune.ui.screens.settings
+ 
++import androidx.compose.foundation.lazy.rememberLazyListState
+ import com.dd3boh.outertune.ui.player.BandStrip
++import com.dd3boh.outertune.ui.player.EqCurveWithScrollbar
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+ import com.dd3boh.outertune.ui.component.BackButton
+ import androidx.compose.foundation.clickable
+@@ -306,7 +308,8 @@ fun EqualizerStudioScreen(
+                 }
+             }
+             Spacer(Modifier.height(12.dp))
+-            BandStrip(settings.bands.size) { index, modifier ->
++            val bandListState = rememberLazyListState()
++            BandStrip(settings.bands.size, bandListState) { index, modifier ->
+                     val band = settings.bands[index]
+                     BandColumn(
+                         band = band,
+@@ -337,7 +340,9 @@ fun EqualizerStudioScreen(
+                 )
+             }
+             Spacer(Modifier.height(12.dp))
+-            EqResponseCurve(
++            EqCurveWithScrollbar(
++                listState = bandListState,
++                bandCount = settings.bands.size,
+                 bands = settings.allFilters(),
+                 sampleRate = 44_100,
+                 lineColor = colour,
 -- 
 2.43.0
 
