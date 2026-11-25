@@ -1,7 +1,7 @@
 From 5e80648c172d424b37753f0535c6e2d353e074df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:19:43 +0800
-Subject: [PATCH 01/49] Android: the Local tab gets Stats, Settings and Account
+Subject: [PATCH 01/53] Android: the Local tab gets Stats, Settings and Account
  like Home
 
 With the Search tab on, the tabs have no bar across the top, so Home puts
@@ -66,7 +66,7 @@ index 7057102..dd43b8e 100644
 From 1445e31580e458755f53d1410c921e517538311c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 02/49] Android Local tab: chips stay at the top, search and
+Subject: [PATCH 02/53] Android Local tab: chips stay at the top, search and
  layout move into the header
 
 With the Search tab on nothing else is across the top, so the chips (and
@@ -244,7 +244,7 @@ index dd43b8e..e782829 100644
 From 8bc5e3489c1eea7321d99f89325ee8835f326386 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 03/49] Widget lyrics: redraw when the next word is due, not
+Subject: [PATCH 03/53] Widget lyrics: redraw when the next word is due, not
  once a second
 
 The widget was redrawn on a fixed second, so a word lit up to a second after
@@ -359,7 +359,7 @@ index 305c846..e555cbd 100644
 From dececfb353d3b70d287f8e042a525ac774297b15 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:26:33 +0800
-Subject: [PATCH 04/49] Home: Stats, Settings and Account sit on the Recent
+Subject: [PATCH 04/53] Home: Stats, Settings and Account sit on the Recent
  activity row
 
 With the Search tab on they were at the end of the chips row at the very
@@ -438,7 +438,7 @@ index 188dd20..2e7c44b 100644
 From fe1d90be991f7d1d35d33e5a30ae9ee3b92142a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:27:39 +0800
-Subject: [PATCH 05/49] Home: icons move to the Recent activity row only when
+Subject: [PATCH 05/53] Home: icons move to the Recent activity row only when
  the chips are hidden
 
 With the chips shown, Stats / Settings / Account stay at the end of the
@@ -476,7 +476,7 @@ index 2e7c44b..97265f8 100644
 From 665e3407905b79e776f41e5a4868fdb06fefb0e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:31:07 +0800
-Subject: [PATCH 06/49] Streams: try every visionOS identity, so one being
+Subject: [PATCH 06/53] Streams: try every visionOS identity, so one being
  closed does not cost the client
 
 Only VISIONOS was in the playback chains; VISIONOS_0_1 existed but was used
@@ -587,7 +587,7 @@ index 9fa09c8..b7e6b9d 100644
 From 45288afae5eedc09d15dec8a24f219f13a9b07ff Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:59:41 +0800
-Subject: [PATCH 07/49] Local tab: count it as a top-level page, so it gets the
+Subject: [PATCH 07/53] Local tab: count it as a top-level page, so it gets the
  top bar or loses its height
 
 The top bar (search, Stats, Settings, Account) and its reserved height were
@@ -694,7 +694,7 @@ index e7b8f84..1a0f38e 100644
 From 18ed6c865483771adbff0cdd8b3d36d5f696ca25 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 18 Nov 2026 21:28:57 +0800
-Subject: [PATCH 08/49] Desktop mini player lyrics follow the Fade / Sweep
+Subject: [PATCH 08/53] Desktop mini player lyrics follow the Fade / Sweep
  setting
 
 The line being sung in the mini player always lit its words with the
@@ -861,7 +861,7 @@ index 6f8516a..7c40263 100644
 From 3129581ba5730a051407789656cc3152523538dd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:24:59 +0800
-Subject: [PATCH 09/49] Widget lyrics: highlight style and smooth-word
+Subject: [PATCH 09/53] Widget lyrics: highlight style and smooth-word
  settings, lit by stage within a word
 
 The widget lit a whole word at once. Words now carry their end times, and
@@ -1251,7 +1251,7 @@ index 4a08bf5..7b86071 100644
 From 2446dd8084d2c684b52868fa509ad1f991807523 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:30:04 +0800
-Subject: [PATCH 10/49] Add Simple reactive player background (ported from
+Subject: [PATCH 10/53] Add Simple reactive player background (ported from
  InterTune's Living blur)
 
 Cover reduced to soft colour patches that move with the music, driven by an
@@ -4085,7 +4085,7 @@ index 1bd80ea..b2ab9d7 100644
 From 6efc00004937c393e91dafd102c663636991694f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:34:41 +0800
-Subject: [PATCH 11/49] Port InterTune radio fixes: dotted song lengths and
+Subject: [PATCH 11/53] Port InterTune radio fixes: dotted song lengths and
  signed-out account id
 
 parseTime reads 3.34 as well as 3:34 (Indonesian, Finnish, Danish), so radios and
@@ -4318,7 +4318,7 @@ index 8b44a6e..55fc6f9 100644
 From 722dbcaa4932a81a7a92b879717db447649846b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:34:54 +0800
-Subject: [PATCH 12/49] Radio pages add only songs the queue has not already
+Subject: [PATCH 12/53] Radio pages add only songs the queue has not already
  had
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -4399,7 +4399,7 @@ index 3e0ddcd..cbd6e59 100644
 From 0eeff7214979b8dc9a67b766fac27af17e743f81 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:35:31 +0800
-Subject: [PATCH 13/49] Widget lyrics: a new line slides up into place in
+Subject: [PATCH 13/53] Widget lyrics: a new line slides up into place in
  stages instead of jumping
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -4521,7 +4521,7 @@ index cd8c958..4064b7d 100644
 From 74e445a8e832b1ccfe0072c35b60a2445dedd921 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 15:41:01 +0800
-Subject: [PATCH 14/49] Discord presence: clear before closing and start each
+Subject: [PATCH 14/53] Discord presence: clear before closing and start each
  session from an empty card (from Metrolist)
 
 Closing the app or rebuilding the connection now clears the activity first, bounded to
@@ -4788,7 +4788,7 @@ index 995871d..1776e46 100644
 From 26123a4eb463919897d6e6e56a95e62c9171b8e1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 15:41:30 +0800
-Subject: [PATCH 15/49] AutoEQ: match one headphone to another (EQ Studio and
+Subject: [PATCH 15/53] AutoEQ: match one headphone to another (EQ Studio and
  Settings > Equaliser)
 
 Pick the headphones in use and the pair to imitate; the difference of their AutoEQ
@@ -5108,7 +5108,7 @@ index b2ab9d7..bbba72a 100644
 From 9dfc2bfdbf1e29313f9ea536f06794d1b51cb9e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 17:12:59 +0800
-Subject: [PATCH 16/49] Fix the Simple reactive colours string: escape the
+Subject: [PATCH 16/53] Fix the Simple reactive colours string: escape the
  apostrophe (aapt refused the resource)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5137,7 +5137,7 @@ index bbba72a..920c0f2 100644
 From 3fd6086a13929d77938168d97cc6bc1f4c8c97f6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 18:50:10 +0800
-Subject: [PATCH 17/49] Widget lyrics style preference: EnumListPreference
+Subject: [PATCH 17/53] Widget lyrics style preference: EnumListPreference
  needs its icon argument
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5165,7 +5165,7 @@ index bbfe850..58883cf 100644
 From 1228f794fb13cd5b836e88a7522cdd03a3eab860 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 19:39:16 +0800
-Subject: [PATCH 18/49] Default music player: MainActivity answers
+Subject: [PATCH 18/53] Default music player: MainActivity answers
  MAIN/MUSIC_PLAYER/APP_MUSIC and audio VIEW; scan folders compared as folders,
  not as text
 
@@ -5304,7 +5304,7 @@ index 57b2cdf..99da1fb 100644
 From d724de8ed967cfdf9e495e84c0a7086ce41328ea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 19/49] Links: a link that starts the app is followed, and
+Subject: [PATCH 19/53] Links: a link that starts the app is followed, and
  YouTube Music album/artist and shorts links open
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5408,7 +5408,7 @@ index 604815d..709d82e 100644
 From ced9b87f3edadf7716cb04509e985c145b81866e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 20/49] Widget: cached cover and seek bar, eased line slide,
+Subject: [PATCH 20/53] Widget: cached cover and seek bar, eased line slide,
  and spare height on tall widgets goes to the lyrics
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5588,7 +5588,7 @@ index 0000000..0e7ab96
 From cd8a5cfaa72b761724db87156637d5283b5117e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 21/49] AutoEQ matching reuses the AutoEQ search dialog instead
+Subject: [PATCH 21/53] AutoEQ matching reuses the AutoEQ search dialog instead
  of a second copy
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5967,7 +5967,7 @@ index 920c0f2..ecb8dfb 100644
 From 536864aff7e04d97ae13e39260b49dd1ce6a31e4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:58:51 +0800
-Subject: [PATCH 22/49] AutoEQ: search the full database by source, add
+Subject: [PATCH 22/53] AutoEQ: search the full database by source, add
  Databases dialog; add open-links settings entry
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6537,7 +6537,7 @@ index ecb8dfb..37e6249 100644
 From fb9e099ea590c38ba344dd324f4ca96ec8227fe8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 21:36:03 +0800
-Subject: [PATCH 23/49] Fix crash opening AutoEQ Databases: bound the list
+Subject: [PATCH 23/53] Fix crash opening AutoEQ Databases: bound the list
  height
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6566,7 +6566,7 @@ index a2a12ce..a107833 100644
 From 48813c093df86596d6083dc1b965e385e1e78356 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 18:47:45 +0800
-Subject: [PATCH 24/49] BetterLyrics: fall back to the older host when the new
+Subject: [PATCH 24/53] BetterLyrics: fall back to the older host when the new
  one has nothing
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6661,7 +6661,7 @@ index 803d169..6f0392c 100644
 From 63b032bc02e4c44a72dc73fbb7d0b7cf7bbeb368 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 18:55:06 +0800
-Subject: [PATCH 25/49] BetterLyrics: log which host answered each lookup
+Subject: [PATCH 25/53] BetterLyrics: log which host answered each lookup
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -6721,7 +6721,7 @@ index 6f0392c..888576c 100644
 From cc4df1cc9b2463c3d72240ed0a84ec50a8795312 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:12:00 +0800
-Subject: [PATCH 26/49] Tickable, reorderable icons beside and in the search
+Subject: [PATCH 26/53] Tickable, reorderable icons beside and in the search
  field; replace the identify button placement
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -7192,7 +7192,7 @@ index 37e6249..728db04 100644
 From ffa9d4f35559ab03ae2dbe31b7b9e2218d71fca0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:17:40 +0800
-Subject: [PATCH 27/49] Liquid glass: joined mini player and tabs panel, top
+Subject: [PATCH 27/53] Liquid glass: joined mini player and tabs panel, top
  bar pill, Appearance settings
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -7856,7 +7856,7 @@ index d3954fa..b65c0b4 100644
 From 14cb6b7820bddfc9d0a8f183b16880d4e63dfc7a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:20:52 +0800
-Subject: [PATCH 28/49] Liquid glass for floating buttons through a glass host,
+Subject: [PATCH 28/53] Liquid glass for floating buttons through a glass host,
  with its own toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -8259,7 +8259,7 @@ index b380a56..2332d60 100644
 From 29d9a70019b04af3efa690974d6db14777ef4774 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 10:13:40 +0800
-Subject: [PATCH 29/49] Fix compile errors in liquid glass dialog and icon
+Subject: [PATCH 29/53] Fix compile errors in liquid glass dialog and icon
  lists
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -8323,7 +8323,7 @@ index 8a4baa9..5769e86 100644
 From 2bed81fc87cc6aec7ff6fde8d9d0687352fa347c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 10:15:05 +0800
-Subject: [PATCH 30/49] Liquid glass back buttons with their own toggle
+Subject: [PATCH 30/53] Liquid glass back buttons with their own toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -9400,7 +9400,7 @@ index 2332d60..7796d6c 100644
 From b7f85254e7dc63e58e4b41cb1e6b011fe23f9ec4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 11:11:43 +0800
-Subject: [PATCH 31/49] Liquid glass: remaining back buttons, queue bar pane
+Subject: [PATCH 31/53] Liquid glass: remaining back buttons, queue bar pane
  over the list, queue toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -9882,7 +9882,7 @@ index 7796d6c..12aa376 100644
 From fd9788e0e05c5c5f43f941c48fa3273c96a4b772 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 11:29:23 +0800
-Subject: [PATCH 32/49] Fix missing imports in BottomSheet and Queue
+Subject: [PATCH 32/53] Fix missing imports in BottomSheet and Queue
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -9923,7 +9923,7 @@ index 07895f0..91af733 100644
 From 77c69cd1b30740dc90c1110624222fc638bd7480 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:08:42 +0800
-Subject: [PATCH 33/49] Liquid glass: queue pane above system buttons, hosted
+Subject: [PATCH 33/53] Liquid glass: queue pane above system buttons, hosted
  controls clip and fade with their screen, glass like/share, settings as a
  screen
 
@@ -10440,7 +10440,7 @@ index 12aa376..e450437 100644
 From af858be045c5b3aa51321e61c052edef565ed4d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:09:35 +0800
-Subject: [PATCH 34/49] Add LyricsPlus (YouLy+) as a lyrics provider
+Subject: [PATCH 34/53] Add LyricsPlus (YouLy+) as a lyrics provider
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -10693,7 +10693,7 @@ index 0000000..339ff43
 From 416154c4103fbd8ed69cb5097feb37f84e5d2f9e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:10:20 +0800
-Subject: [PATCH 35/49] Lyrics: search with InterTune's cleaned title, album
+Subject: [PATCH 35/53] Lyrics: search with InterTune's cleaned title, album
  and first artist; ask boidu host first
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -10884,7 +10884,7 @@ index 888576c..aa36196 100644
 From b078b11df5066c9b6304cd50a57526c984554066 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 19:13:03 +0800
-Subject: [PATCH 36/49] LRCLIB: read the new word-synced lyricsfile
+Subject: [PATCH 36/53] LRCLIB: read the new word-synced lyricsfile
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11099,7 +11099,7 @@ index 35e4ca2..2ab36fe 100644
 From ce77d2040daef1c7d9f896e55d369fca586548da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 19:21:01 +0800
-Subject: [PATCH 37/49] LRCLIB word-synced lyrics as their own provider
+Subject: [PATCH 37/53] LRCLIB word-synced lyrics as their own provider
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11252,7 +11252,7 @@ index 5ed5d86..aff13a2 100644
 From 3e6101c778bfd2f2658efe593e35cdd1433c9bb5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 16:56:05 +0800
-Subject: [PATCH 38/49] Liquid glass for the equalizer cards (with a settings
+Subject: [PATCH 38/53] Liquid glass for the equalizer cards (with a settings
  toggle); denser glass back buttons with theme-coloured icons
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -11520,7 +11520,7 @@ index e450437..221240c 100644
 From 00b554477307fb3f06812701e0cea84906b6e623 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 16:56:13 +0800
-Subject: [PATCH 39/49] BackButton: dp import
+Subject: [PATCH 39/53] BackButton: dp import
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11547,7 +11547,7 @@ index 1d6b719..947919f 100644
 From bd14a6da2ce7fd174cd544743a946050ce564957 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:05:24 +0800
-Subject: [PATCH 40/49] Precache the next N songs (slider, default 2) and
+Subject: [PATCH 40/53] Precache the next N songs (slider, default 2) and
  smooth notification ducking
 
 Both under Settings > Experimental.
@@ -11913,7 +11913,7 @@ index a753533..724b8f5 100644
 From 1db9f4a71152dd083f3ae6f83481091950d0c106 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:07:19 +0800
-Subject: [PATCH 41/49] Retry unavailable tracks under the ID YouTube Music now
+Subject: [PATCH 41/53] Retry unavailable tracks under the ID YouTube Music now
  serves (resolve_url, from innertubex 0.11.9)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12035,7 +12035,7 @@ index 0000000..fd28551
 From 6da132ac1d6253b2f74d5c02b9629bef070f8ab7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:18:03 +0800
-Subject: [PATCH 42/49] Hold the next button to preview the next song (with
+Subject: [PATCH 42/53] Hold the next button to preview the next song (with
  optional label)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12319,7 +12319,7 @@ index 626cc45..9e4f62f 100644
 From ccb9a10362943d182a05ec6b8ca8802c4a60713d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:26:38 +0800
-Subject: [PATCH 43/49] Fix combine() arity: fold duck and preview factors into
+Subject: [PATCH 43/53] Fix combine() arity: fold duck and preview factors into
  one flow
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12354,7 +12354,7 @@ index 169a2d8..3c42823 100644
 From 9761e33a3b322a1c81f97ce32db58aa2e5c99a19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 23 Nov 2026 10:44:29 +0800
-Subject: [PATCH 44/49] Preview label: a small translucent Previewing pill,
+Subject: [PATCH 44/53] Preview label: a small translucent Previewing pill,
  like the lyrics-type tag
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12438,7 +12438,7 @@ index d365d6f..b1d4303 100644
 From b82921fd516f5d2681def9ab731a8798644bc20c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 23 Nov 2026 11:09:46 +0800
-Subject: [PATCH 45/49] Liquid glass for the settings search field
+Subject: [PATCH 45/53] Liquid glass for the settings search field
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -12505,7 +12505,7 @@ index 8ad67eb..3b606e7 100644
 From ea78f14b7c71abfe166d516c7c923d4281786111 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 11:35:45 +0800
-Subject: [PATCH 46/49] Equaliser: a draggable scrollbar over the curve for the
+Subject: [PATCH 46/53] Equaliser: a draggable scrollbar over the curve for the
  band strip
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12669,7 +12669,7 @@ index 1485d1a..9cd2a6d 100644
 From 29bbd2fb73f5433befe2d70ef4e18539d8a5e426 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 12:18:35 +0800
-Subject: [PATCH 47/49] Equaliser scrollbar: a visible track behind the thumb
+Subject: [PATCH 47/53] Equaliser scrollbar: a visible track behind the thumb
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -12706,7 +12706,7 @@ index 9cd2a6d..f686388 100644
 From ae6465ae7eb4e13571a213cd193a66d6dbaf872b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 12:48:15 +0800
-Subject: [PATCH 48/49] Equaliser scrollbar: sit between the curve's dotted
+Subject: [PATCH 48/53] Equaliser scrollbar: sit between the curve's dotted
  lines
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12781,7 +12781,7 @@ index f686388..9ca8a21 100644
 From c0d7b11fb00c3e3d7241203d5ef76da4d585bde5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 17:21:28 +0800
-Subject: [PATCH 49/49] Android: ducking and precache on by default, ordered
+Subject: [PATCH 49/53] Android: ducking and precache on by default, ordered
  with the slider under precache, better icons; balance works with the
  equaliser off
 
@@ -12930,6 +12930,841 @@ index 9e4f62f..0363e15 100644
                  checked = showPreviewLabel,
                  onCheckedChange = onShowPreviewLabelChange,
                  isEnabled = holdNextPreview
+-- 
+2.43.0
+
+
+From 29cd2ce527c60dd9caa8cb8607f53968b2907788 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 09:15:25 +0800
+Subject: [PATCH 50/53] Android: Settings can't vanish from both icon lists,
+ Like in player menu, update notification that opens the updater and downloads
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../java/com/dd3boh/outertune/MainActivity.kt | 20 ++++
+ .../outertune/constants/PreferenceKeys.kt     |  4 +
+ .../outertune/ui/component/ShortcutIcons.kt   | 16 ++++
+ .../dd3boh/outertune/ui/menu/PlayerMenu.kt    |  8 ++
+ .../outertune/ui/screens/HomeShortcutIcons.kt |  6 +-
+ .../ui/screens/search/SearchScreen.kt         |  3 +-
+ .../ui/screens/settings/UpdaterSettings.kt    |  7 +-
+ .../settings/fragments/InterfaceFrag.kt       |  2 +
+ .../dd3boh/outertune/utils/UpdateNotifier.kt  | 93 +++++++++++++++++++
+ app/src/main/res/values/strings-ot.xml        |  2 +
+ 10 files changed, 158 insertions(+), 3 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/utils/UpdateNotifier.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index cb90203..c087c0d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -232,6 +232,7 @@ import com.dd3boh.outertune.ui.screens.settings.PrivacySettings
+ import com.dd3boh.outertune.ui.screens.settings.SettingsScreen
+ import com.dd3boh.outertune.ui.screens.settings.StorageSettings
+ import com.dd3boh.outertune.ui.screens.settings.UpdaterSettings
++import com.dd3boh.outertune.utils.UpdateNotifier
+ import com.dd3boh.outertune.ui.theme.DefaultThemeColor
+ import com.dd3boh.outertune.ui.theme.OuterTuneTheme
+ import com.dd3boh.outertune.ui.utils.appBarScrollBehavior
+@@ -584,6 +585,11 @@ class MainActivity : ComponentActivity() {
+ 
+                     DisposableEffect(Unit) {
+                         val listener = Consumer<Intent> { intent ->
++                            if (intent.getBooleanExtra(UpdateNotifier.EXTRA_OPEN_UPDATER, false)) {
++                                UpdateNotifier.downloadOnOpen = true
++                                navController.navigate("settings/updater")
++                                return@Consumer
++                            }
+                             val uri =
+                                 intent.data ?: intent.extras?.getString(Intent.EXTRA_TEXT)?.toUri()
+                                 ?: return@Consumer
+@@ -606,6 +612,20 @@ class MainActivity : ComponentActivity() {
+                     // followed the link; a cold start just showed the home screen. Waits for the
+                     // player (a song link plays it), and is remembered as done so turning the phone
+                     // or coming back from the recents does not play it again.
++                    // The update notification, tapped while the app was closed: straight to the
++                    // Updater, which starts the download.
++                    var startUpdaterDone by rememberSaveable { mutableStateOf(false) }
++                    LaunchedEffect(Unit) {
++                        if (startUpdaterDone) return@LaunchedEffect
++                        startUpdaterDone = true
++                        if (intent?.getBooleanExtra(UpdateNotifier.EXTRA_OPEN_UPDATER, false) == true) {
++                            UpdateNotifier.downloadOnOpen = true
++                            navController.navigate("settings/updater")
++                        } else {
++                            UpdateNotifier.checkAndNotify(this@MainActivity)
++                        }
++                    }
++
+                     var startLinkDone by rememberSaveable { mutableStateOf(false) }
+                     LaunchedEffect(playerConnection) {
+                         if (startLinkDone) return@LaunchedEffect
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 31105c9..289c5b1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -702,6 +702,10 @@ val CountryCodeToName = mapOf(
+ 
+ // Updater
+ val AutoCheckUpdatesKey = booleanPreferencesKey("autoCheckUpdates")
++/** When the background update check last ran, so opening the app often does not mean asking GitHub often. */
++val LastUpdateCheckKey = longPreferencesKey("lastUpdateCheck")
++/** The newest version already announced with a notification, so it is announced once. */
++val LastNotifiedUpdateKey = intPreferencesKey("lastNotifiedUpdate")
+ val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
+ /** Write a backup before handing an update to the installer. On by default. */
+ val BackupBeforeUpdateKey = booleanPreferencesKey("backupBeforeUpdate")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
+index 035479c..75eeac0 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
+@@ -65,6 +65,17 @@ const val DEFAULT_IN_SEARCH_ICONS = "recognize"
+ fun parseShortcutIcons(stored: String): List<ShortcutIcon> =
+     stored.split(',').mapNotNull { id -> ShortcutIcon.entries.find { it.id == id.trim() } }.distinct()
+ 
++/**
++ * The beside-the-search icons, with Settings put back if neither place shows it.
++ *
++ * Unticking Settings in both lists left no way into Settings at all - the screen that would
++ * undo it. So it is never allowed to vanish from both; this also rescues setups already stuck.
++ */
++fun besideIconsKeepingSettings(beside: String, inField: String): String {
++    val shown = parseShortcutIcons(beside) + parseShortcutIcons(inField)
++    return if (ShortcutIcon.SETTINGS in shown) beside else if (beside.isBlank()) "settings" else "$beside,settings"
++}
++
+ /** One button for [icon], going where it goes. */
+ @Composable
+ fun ShortcutIconButton(icon: ShortcutIcon, navController: NavController) {
+@@ -96,6 +107,8 @@ fun ShortcutIconsDialog(
+     title: String,
+     stored: String,
+     default: String,
++    /** The other place's stored icons: Settings must stay ticked in one of the two. */
++    otherStored: String = "",
+     onConfirm: (String) -> Unit,
+     onDismiss: () -> Unit,
+ ) {
+@@ -130,7 +143,10 @@ fun ShortcutIconsDialog(
+                         modifier = Modifier.padding(start = 4.dp, end = 12.dp).fillMaxWidth()
+                     ) {
+                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
++                            val lastSettings = item == ShortcutIcon.SETTINGS &&
++                                ShortcutIcon.SETTINGS !in parseShortcutIcons(otherStored)
+                             Checkbox(
++                                enabled = !(lastSettings && item in ticked),
+                                 checked = item in ticked,
+                                 onCheckedChange = { on -> if (on) ticked.add(item) else ticked.remove(item) },
+                             )
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
+index 6f08d2c..8d44fdf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
+@@ -26,6 +26,8 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+ import androidx.compose.material.icons.rounded.AddCircleOutline
+ import androidx.compose.material.icons.rounded.Bedtime
++import androidx.compose.material.icons.rounded.Favorite
++import androidx.compose.material.icons.rounded.FavoriteBorder
+ import androidx.compose.material.icons.rounded.Equalizer
+ import androidx.compose.material.icons.rounded.Info
+ import androidx.compose.material.icons.rounded.LibraryAdd
+@@ -170,6 +172,12 @@ fun PlayerMenu(
+             bottom = 8.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+         )
+     ) {
++        // Like is a default title-row button; once it is taken off the row this is the only place
++        // left to reach it from.
++        GridMenuItem(
++            icon = if (actions.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
++            title = R.string.action_like,
++        ) { actions.run(PlayerButton.LIKE) }
+         if (actions.isAvailable(PlayerButton.RADIO))
+             GridMenuItem(icon = Icons.Rounded.Radio, title = R.string.start_radio) { actions.run(PlayerButton.RADIO) }
+         GridMenuItem(icon = Icons.AutoMirrored.Rounded.QueueMusic, title = R.string.add_to_queue) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
+index 3616c9e..6322489 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
+@@ -11,7 +11,10 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Modifier
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.constants.SearchBesideIconsKey
++import com.dd3boh.outertune.constants.SearchInFieldIconsKey
+ import com.dd3boh.outertune.ui.component.DEFAULT_BESIDE_SEARCH_ICONS
++import com.dd3boh.outertune.ui.component.DEFAULT_IN_SEARCH_ICONS
++import com.dd3boh.outertune.ui.component.besideIconsKeepingSettings
+ import com.dd3boh.outertune.ui.component.ShortcutIconRow
+ import com.dd3boh.outertune.utils.rememberPreference
+ 
+@@ -23,5 +26,6 @@ import com.dd3boh.outertune.utils.rememberPreference
+ @Composable
+ fun HomeShortcutIcons(navController: NavController, modifier: Modifier = Modifier) {
+     val stored by rememberPreference(SearchBesideIconsKey, defaultValue = DEFAULT_BESIDE_SEARCH_ICONS)
+-    ShortcutIconRow(stored, navController, modifier)
++    val inField by rememberPreference(SearchInFieldIconsKey, defaultValue = DEFAULT_IN_SEARCH_ICONS)
++    ShortcutIconRow(besideIconsKeepingSettings(stored, inField), navController, modifier)
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index fea3e70..d8cb15a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -87,6 +87,7 @@ import com.dd3boh.outertune.ui.utils.glassPanel
+ import com.dd3boh.outertune.ui.component.DEFAULT_BESIDE_SEARCH_ICONS
+ import com.dd3boh.outertune.ui.component.DEFAULT_IN_SEARCH_ICONS
+ import com.dd3boh.outertune.ui.component.ShortcutIconButton
++import com.dd3boh.outertune.ui.component.besideIconsKeepingSettings
+ import com.dd3boh.outertune.ui.component.parseShortcutIcons
+ import com.dd3boh.outertune.constants.SearchSource
+ import com.dd3boh.outertune.constants.SearchSourceKey
+@@ -407,7 +408,7 @@ fun SearchBarContainer(
+             scrollBehavior = scrollBehavior,
+             windowInsets = iconRowInset,
+             showLogo = showTopBarLogo,
+-            icons = besideIcons,
++            icons = besideIconsKeepingSettings(besideIcons, inFieldIcons),
+             navController = navController,
+             onSearchClick = { onSearchActiveChange(true) },
+         )
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
+index 170096f..78e7a5b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
+@@ -53,6 +53,7 @@ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.dialog.InfoLabel
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.utils.AppUpdater
++import com.dd3boh.outertune.utils.UpdateNotifier
+ import com.dd3boh.outertune.utils.rememberPreference
+ import kotlinx.coroutines.launch
+ 
+@@ -116,7 +117,11 @@ fun UpdaterSettings(
+     // Checked on open rather than only on tap: a screen called "Updater" that says nothing until
+     // prodded is just a button with extra steps.
+     LaunchedEffect(Unit) {
+-        if (autoCheck) check(thenDownload = autoDownload)
++        // Arrived from the update notification: download straight away, whatever the switch says.
++        val fromNotification = UpdateNotifier.downloadOnOpen
++        UpdateNotifier.downloadOnOpen = false
++        if (fromNotification) check(thenDownload = true)
++        else if (autoCheck) check(thenDownload = autoDownload)
+     }
+ 
+     ColumnWithContentPadding(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
+index 5769e86..8b690bd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
+@@ -424,6 +424,7 @@ fun ColumnScope.TabExtrasFrag() {
+             title = stringResource(R.string.search_icons_beside_title),
+             stored = besideIcons,
+             default = DEFAULT_BESIDE_SEARCH_ICONS,
++            otherStored = inFieldIcons,
+             onConfirm = onBesideIconsChange,
+             onDismiss = { showBesideDialog = false },
+         )
+@@ -433,6 +434,7 @@ fun ColumnScope.TabExtrasFrag() {
+             title = stringResource(R.string.search_icons_in_title),
+             stored = inFieldIcons,
+             default = DEFAULT_IN_SEARCH_ICONS,
++            otherStored = besideIcons,
+             onConfirm = onInFieldIconsChange,
+             onDismiss = { showInFieldDialog = false },
+         )
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/UpdateNotifier.kt b/app/src/main/java/com/dd3boh/outertune/utils/UpdateNotifier.kt
+new file mode 100644
+index 0000000..b6bb84b
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/utils/UpdateNotifier.kt
+@@ -0,0 +1,93 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.utils
++
++import android.annotation.SuppressLint
++import android.app.NotificationChannel
++import android.app.NotificationManager
++import android.app.PendingIntent
++import android.content.Context
++import android.content.Intent
++import android.os.Build
++import androidx.core.app.NotificationCompat
++import androidx.core.app.NotificationManagerCompat
++import com.dd3boh.outertune.MainActivity
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.AutoCheckUpdatesKey
++import com.dd3boh.outertune.constants.LastNotifiedUpdateKey
++import com.dd3boh.outertune.constants.LastUpdateCheckKey
++import com.dd3boh.outertune.constants.SkipBetaUpdatesKey
++import com.dd3boh.outertune.constants.UpdateAvailableKey
++import kotlinx.coroutines.flow.first
++import androidx.datastore.preferences.core.edit
++
++/**
++ * Tells the user a new version exists, with a notification that takes them to the Updater and
++ * starts the download - so all that is left for them is the system's install confirmation.
++ *
++ * Checked at most every [CHECK_INTERVAL_MS] when the app opens, and a version is announced once.
++ * Nothing happens without the notification permission: this is a convenience, not a reason to ask.
++ */
++object UpdateNotifier {
++    const val EXTRA_OPEN_UPDATER = "openUpdater"
++    private const val CHANNEL_ID = "app_updates"
++    private const val NOTIFICATION_ID = 7421
++    private const val CHECK_INTERVAL_MS = 6L * 60 * 60 * 1000
++
++    /**
++     * Set when the user tapped the notification: the Updater screen downloads at once instead of
++     * waiting for a tap. Read and cleared by it.
++     */
++    @Volatile
++    var downloadOnOpen = false
++
++    suspend fun checkAndNotify(context: Context) {
++        val store = context.dataStore
++        val prefs = store.data.first()
++        if (prefs[AutoCheckUpdatesKey] == false) return
++        val now = System.currentTimeMillis()
++        if (now - (prefs[LastUpdateCheckKey] ?: 0L) < CHECK_INTERVAL_MS) return
++        store.edit { it[LastUpdateCheckKey] = now }
++
++        val found = AppUpdater.checkForUpdate(skipBetas = prefs[SkipBetaUpdatesKey] ?: false)
++        store.edit { it[UpdateAvailableKey] = found != null }
++        if (found == null || prefs[LastNotifiedUpdateKey] == found.versionCode) return
++        if (notify(context, found)) store.edit { it[LastNotifiedUpdateKey] = found.versionCode }
++    }
++
++    @SuppressLint("MissingPermission") // areNotificationsEnabled covers it
++    private fun notify(context: Context, update: AppUpdater.Update): Boolean {
++        val manager = NotificationManagerCompat.from(context)
++        if (!manager.areNotificationsEnabled()) return false
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            context.getSystemService(NotificationManager::class.java).createNotificationChannel(
++                NotificationChannel(
++                    CHANNEL_ID,
++                    context.getString(R.string.update_notification_channel),
++                    NotificationManager.IMPORTANCE_DEFAULT,
++                )
++            )
++        }
++        val open = Intent(context, MainActivity::class.java)
++            .putExtra(EXTRA_OPEN_UPDATER, true)
++            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
++        val pending = PendingIntent.getActivity(
++            context, 0, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
++        )
++        manager.notify(
++            NOTIFICATION_ID,
++            NotificationCompat.Builder(context, CHANNEL_ID)
++                .setSmallIcon(R.drawable.small_icon)
++                .setContentTitle(context.getString(R.string.update_available, update.versionName))
++                .setContentText(context.getString(R.string.update_notification_text))
++                .setContentIntent(pending)
++                .setAutoCancel(true)
++                .build(),
++        )
++        return true
++    }
++}
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 221240c..c3e0dfb 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -141,6 +141,8 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="check_for_updates">Check for updates</string>
+     <string name="update_checking">Checking…</string>
+     <string name="update_up_to_date">You are on the latest build</string>
++    <string name="update_notification_channel">App updates</string>
++    <string name="update_notification_text">Tap to download it, then confirm the install.</string>
+     <string name="update_available">New release available — %1$s</string>
+     <string name="update_install_now">Download and install</string>
+     <string name="update_current_version">Currently on %1$s (%2$d)</string>
+-- 
+2.43.0
+
+
+From 1b96708c00d6a0862f76610cb97aaf5b86395299 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 09:21:01 +0800
+Subject: [PATCH 51/53] Android: player menu skips buttons already on the row;
+ prompt when Settings icon is locked
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/ui/component/ShortcutIcons.kt   | 30 ++++++++++++++---
+ .../dd3boh/outertune/ui/menu/PlayerMenu.kt    | 32 +++++++++++++++++++
+ app/src/main/res/values/strings-ot.xml        |  1 +
+ 3 files changed, 58 insertions(+), 5 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
+index 75eeac0..85ced9f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/ShortcutIcons.kt
+@@ -6,7 +6,11 @@
+ 
+ package com.dd3boh.outertune.ui.component
+ 
++import android.widget.Toast
++import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxWidth
+@@ -145,11 +149,27 @@ fun ShortcutIconsDialog(
+                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                             val lastSettings = item == ShortcutIcon.SETTINGS &&
+                                 ShortcutIcon.SETTINGS !in parseShortcutIcons(otherStored)
+-                            Checkbox(
+-                                enabled = !(lastSettings && item in ticked),
+-                                checked = item in ticked,
+-                                onCheckedChange = { on -> if (on) ticked.add(item) else ticked.remove(item) },
+-                            )
++                            val locked = lastSettings && item in ticked
++                            val context = LocalContext.current
++                            Box {
++                                Checkbox(
++                                    enabled = !locked,
++                                    checked = item in ticked,
++                                    onCheckedChange = { on -> if (on) ticked.add(item) else ticked.remove(item) },
++                                )
++                                // A disabled checkbox swallows taps silently; say why instead.
++                                if (locked) {
++                                    Box(
++                                        Modifier.matchParentSize().clickable {
++                                            Toast.makeText(
++                                                context,
++                                                context.getString(R.string.settings_icon_cannot_hide),
++                                                Toast.LENGTH_SHORT,
++                                            ).show()
++                                        }
++                                    )
++                                }
++                            }
+                             Icon(item.icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                             Spacer(Modifier.width(12.dp))
+                             Text(stringResource(item.label))
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
+index 8d44fdf..e8f7815 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
+@@ -105,6 +105,7 @@ import com.dd3boh.outertune.ui.dialog.ArtistDialog
+ import com.dd3boh.outertune.ui.dialog.DetailsDialog
+ import com.dd3boh.outertune.ui.player.LocalEqualizerPanelState
+ import com.dd3boh.outertune.ui.player.PlayerButton
++import com.dd3boh.outertune.ui.player.rememberPlayerButtons
+ import com.dd3boh.outertune.utils.rememberPreference
+ import com.zionhuang.innertube.YouTube
+ import kotlinx.coroutines.Dispatchers
+@@ -143,6 +144,9 @@ fun PlayerMenu(
+         onOpenMenu = {},
+     ) ?: return
+ 
++    // What already sits on the title row is not repeated here.
++    val onRow = rememberPlayerButtons()
++
+     Row(
+         horizontalArrangement = Arrangement.spacedBy(24.dp),
+         verticalAlignment = Alignment.CenterVertically,
+@@ -174,24 +178,35 @@ fun PlayerMenu(
+     ) {
+         // Like is a default title-row button; once it is taken off the row this is the only place
+         // left to reach it from.
++        if (PlayerButton.LIKE !in onRow) {
+         GridMenuItem(
+             icon = if (actions.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+             title = R.string.action_like,
+         ) { actions.run(PlayerButton.LIKE) }
++        }
++        if (PlayerButton.RADIO !in onRow) {
+         if (actions.isAvailable(PlayerButton.RADIO))
+             GridMenuItem(icon = Icons.Rounded.Radio, title = R.string.start_radio) { actions.run(PlayerButton.RADIO) }
++        }
++        if (PlayerButton.QUEUE !in onRow) {
+         GridMenuItem(icon = Icons.AutoMirrored.Rounded.QueueMusic, title = R.string.add_to_queue) {
+             actions.run(PlayerButton.QUEUE)
+         }
++        }
++        if (PlayerButton.PLAYLIST !in onRow) {
+         GridMenuItem(icon = Icons.AutoMirrored.Rounded.PlaylistAdd, title = R.string.add_to_playlist) {
+             actions.run(PlayerButton.PLAYLIST)
+         }
++        }
++        if (PlayerButton.DOWNLOAD !in onRow) {
+         if (actions.isAvailable(PlayerButton.DOWNLOAD))
+             DownloadGridMenu(
+                 state = actions.downloadState,
+                 onDownload = { actions.run(PlayerButton.DOWNLOAD) },
+                 onRemoveDownload = { actions.run(PlayerButton.DOWNLOAD) },
+             )
++        }
++        if (PlayerButton.LIBRARY !in onRow) {
+         if (actions.isAvailable(PlayerButton.LIBRARY)) {
+             if (actions.inLibrary) {
+                 GridMenuItem(icon = Icons.Rounded.LibraryAddCheck, title = R.string.remove_from_library) {
+@@ -203,26 +218,43 @@ fun PlayerMenu(
+                 }
+             }
+         }
++        }
++        if (PlayerButton.ARTIST !in onRow) {
+         GridMenuItem(
+             icon = R.drawable.artist,
+             title = R.string.view_artist,
+             enabled = actions.isAvailable(PlayerButton.ARTIST)
+         ) { actions.run(PlayerButton.ARTIST) }
++        }
++        if (PlayerButton.ALBUM !in onRow) {
+         GridMenuItem(
+             icon = Icons.Rounded.Album,
+             title = R.string.view_album,
+             enabled = actions.isAvailable(PlayerButton.ALBUM)
+         ) { actions.run(PlayerButton.ALBUM) }
++        }
++        if (PlayerButton.SHARE !in onRow) {
+         if (actions.isAvailable(PlayerButton.SHARE))
+             GridMenuItem(icon = Icons.Rounded.Share, title = R.string.share) { actions.run(PlayerButton.SHARE) }
++        }
++        if (PlayerButton.LYRICS !in onRow) {
+         GridMenuItem(icon = Icons.Rounded.Lyrics, title = R.string.toggle_lyrics) { actions.run(PlayerButton.LYRICS) }
++        }
++        if (PlayerButton.DETAILS !in onRow) {
+         GridMenuItem(icon = Icons.Rounded.Info, title = R.string.details) { actions.run(PlayerButton.DETAILS) }
++        }
++        if (PlayerButton.SLEEP !in onRow) {
+         SleepTimerGridMenu(
+             sleepTimerTimeLeft = actions.sleepTimerLeftMs,
+             enabled = actions.sleepTimerActive
+         ) { actions.run(PlayerButton.SLEEP) }
++        }
++        if (PlayerButton.EQUALIZER !in onRow) {
+         GridMenuItem(icon = Icons.Rounded.Equalizer, title = R.string.equalizer) { actions.run(PlayerButton.EQUALIZER) }
++        }
++        if (PlayerButton.ADVANCED !in onRow) {
+         GridMenuItem(icon = Icons.Rounded.Tune, title = R.string.advanced) { actions.run(PlayerButton.ADVANCED) }
++        }
+     }
+ }
+ 
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index c3e0dfb..7a63e4a 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -141,6 +141,7 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="check_for_updates">Check for updates</string>
+     <string name="update_checking">Checking…</string>
+     <string name="update_up_to_date">You are on the latest build</string>
++    <string name="settings_icon_cannot_hide">Settings can't be permanently hidden. Tick it in the other list first to hide it here.</string>
+     <string name="update_notification_channel">App updates</string>
+     <string name="update_notification_text">Tap to download it, then confirm the install.</string>
+     <string name="update_available">New release available — %1$s</string>
+-- 
+2.43.0
+
+
+From 28afe12a7ae3a0119885dc62316ae9c3b44f499e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 09:25:56 +0800
+Subject: [PATCH 52/53] Android: update notification frequency slider
+ (always/30m/1h/2h/4h/never), background worker
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../java/com/dd3boh/outertune/MainActivity.kt |  1 +
+ .../outertune/constants/PreferenceKeys.kt     |  4 +-
+ .../dd3boh/outertune/constants/Settings.kt    | 21 ++++++
+ .../ui/screens/settings/UpdaterSettings.kt    | 35 ++++++++++
+ .../dd3boh/outertune/utils/UpdateNotifier.kt  | 65 ++++++++++++++++---
+ 5 files changed, 114 insertions(+), 12 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index c087c0d..d0b7a62 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -622,6 +622,7 @@ class MainActivity : ComponentActivity() {
+                             UpdateNotifier.downloadOnOpen = true
+                             navController.navigate("settings/updater")
+                         } else {
++                            UpdateNotifier.schedule(this@MainActivity)
+                             UpdateNotifier.checkAndNotify(this@MainActivity)
+                         }
+                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 289c5b1..adee6fd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -704,8 +704,8 @@ val CountryCodeToName = mapOf(
+ val AutoCheckUpdatesKey = booleanPreferencesKey("autoCheckUpdates")
+ /** When the background update check last ran, so opening the app often does not mean asking GitHub often. */
+ val LastUpdateCheckKey = longPreferencesKey("lastUpdateCheck")
+-/** The newest version already announced with a notification, so it is announced once. */
+-val LastNotifiedUpdateKey = intPreferencesKey("lastNotifiedUpdate")
++/** How often the update notification comes while an update is waiting - an [UpdateNotifyFrequency] index. */
++val UpdateNotifyFrequencyKey = intPreferencesKey("updateNotifyFrequency")
+ val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
+ /** Write a backup before handing an update to the installer. On by default. */
+ val BackupBeforeUpdateKey = booleanPreferencesKey("backupBeforeUpdate")
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+index 4f62c4b..ffe75e3 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+@@ -267,6 +267,27 @@ enum class LyricsRefreshInterval(val days: Int) {
+     MONTHLY(30),
+ }
+ 
++/**
++ * How often the "update available" notification is posted while an update is waiting.
++ *
++ * [ALWAYS] is the shortest period WorkManager allows, fifteen minutes: dismissing the notification
++ * only holds it off until the next one. The others space it out; [NEVER] stops it altogether.
++ */
++enum class UpdateNotifyFrequency(val label: String, val minutes: Int?) {
++    ALWAYS("Always (every 15 min)", 15),
++    MIN_30("Every 30 minutes", 30),
++    HOUR_1("Every hour", 60),
++    HOUR_2("Every 2 hours", 120),
++    HOUR_4("Every 4 hours", 240),
++    NEVER("Never", null),
++    ;
++
++    companion object {
++        val DEFAULT = HOUR_2
++        fun fromIndex(index: Int?): UpdateNotifyFrequency = entries.getOrNull(index ?: -1) ?: DEFAULT
++    }
++}
++
+ enum class AudioUpscaling(val amount: Float) {
+     OFF(0f),
+     SUBTLE(0.3f),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
+index 78e7a5b..de40195 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
+@@ -20,7 +20,10 @@ import androidx.compose.material.icons.rounded.Download
+ import androidx.compose.material.icons.rounded.Refresh
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Slider
+ import androidx.compose.material3.Text
++import androidx.datastore.preferences.core.edit
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.material3.TopAppBarScrollBehavior
+ import androidx.compose.runtime.Composable
+@@ -44,6 +47,9 @@ import com.dd3boh.outertune.constants.SkipBetaUpdatesKey
+ import com.dd3boh.outertune.LocalDatabase
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.constants.UpdateAvailableKey
++import com.dd3boh.outertune.constants.UpdateNotifyFrequency
++import com.dd3boh.outertune.constants.UpdateNotifyFrequencyKey
++import com.dd3boh.outertune.utils.dataStore
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+ import com.dd3boh.outertune.ui.component.BackButton
+ import com.dd3boh.outertune.ui.component.PreferenceEntry
+@@ -199,6 +205,35 @@ fun UpdaterSettings(
+             }
+         )
+ 
++        val notifyIndex by rememberPreference(UpdateNotifyFrequencyKey, defaultValue = UpdateNotifyFrequency.DEFAULT.ordinal)
++        var notifySlider by remember(notifyIndex) { mutableStateOf(notifyIndex.toFloat()) }
++        val notifyChoice = UpdateNotifyFrequency.fromIndex(notifySlider.toInt())
++        Text(
++            "Update notification: ${notifyChoice.label}",
++            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
++        )
++        Text(
++            "How often you are reminded while an update is waiting. Swiping it away only holds it off until the next one.",
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++            modifier = Modifier.padding(horizontal = 16.dp),
++        )
++        Slider(
++            value = notifySlider,
++            onValueChange = { notifySlider = it },
++            onValueChangeFinished = {
++                val chosen = UpdateNotifyFrequency.fromIndex(notifySlider.toInt())
++                coroutineScope.launch {
++                    context.dataStore.edit { it[UpdateNotifyFrequencyKey] = chosen.ordinal }
++                    UpdateNotifier.schedule(context, chosen)
++                }
++            },
++            valueRange = 0f..(UpdateNotifyFrequency.entries.size - 1).toFloat(),
++            steps = UpdateNotifyFrequency.entries.size - 2,
++            enabled = autoCheck,
++            modifier = Modifier.padding(horizontal = 16.dp),
++        )
++
+         Spacer(modifier = Modifier.height(16.dp))
+         InfoLabel(stringResource(R.string.update_install_tooltip))
+     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/UpdateNotifier.kt b/app/src/main/java/com/dd3boh/outertune/utils/UpdateNotifier.kt
+index b6bb84b..ba5b165 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/UpdateNotifier.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/UpdateNotifier.kt
+@@ -18,25 +18,34 @@ import androidx.core.app.NotificationManagerCompat
+ import com.dd3boh.outertune.MainActivity
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.AutoCheckUpdatesKey
+-import com.dd3boh.outertune.constants.LastNotifiedUpdateKey
++import com.dd3boh.outertune.constants.UpdateNotifyFrequency
++import com.dd3boh.outertune.constants.UpdateNotifyFrequencyKey
+ import com.dd3boh.outertune.constants.LastUpdateCheckKey
+ import com.dd3boh.outertune.constants.SkipBetaUpdatesKey
+ import com.dd3boh.outertune.constants.UpdateAvailableKey
++import androidx.work.Constraints
++import androidx.work.CoroutineWorker
++import androidx.work.ExistingPeriodicWorkPolicy
++import androidx.work.NetworkType
++import androidx.work.PeriodicWorkRequestBuilder
++import androidx.work.WorkManager
++import androidx.work.WorkerParameters
+ import kotlinx.coroutines.flow.first
++import java.util.concurrent.TimeUnit
+ import androidx.datastore.preferences.core.edit
+ 
+ /**
+  * Tells the user a new version exists, with a notification that takes them to the Updater and
+  * starts the download - so all that is left for them is the system's install confirmation.
+  *
+- * Checked at most every [CHECK_INTERVAL_MS] when the app opens, and a version is announced once.
++ * Checked when the app opens and, on WorkManager, in the background - at the chosen frequency.
+  * Nothing happens without the notification permission: this is a convenience, not a reason to ask.
+  */
+ object UpdateNotifier {
+     const val EXTRA_OPEN_UPDATER = "openUpdater"
+     private const val CHANNEL_ID = "app_updates"
+     private const val NOTIFICATION_ID = 7421
+-    private const val CHECK_INTERVAL_MS = 6L * 60 * 60 * 1000
++    private const val WORK_NAME = "update_check"
+ 
+     /**
+      * Set when the user tapped the notification: the Updater screen downloads at once instead of
+@@ -45,24 +54,61 @@ object UpdateNotifier {
+     @Volatile
+     var downloadOnOpen = false
+ 
+-    suspend fun checkAndNotify(context: Context) {
++    /**
++     * Checks for an update and, if one is waiting, posts the notification. Posted again every
++     * period for as long as it is waiting - that is what the frequency setting means - and taken
++     * back down once the app is up to date.
++     *
++     * [ignoreCooldown] is for the scheduled worker, which WorkManager has already spaced out.
++     */
++    suspend fun checkAndNotify(context: Context, ignoreCooldown: Boolean = false) {
+         val store = context.dataStore
+         val prefs = store.data.first()
++        val frequency = UpdateNotifyFrequency.fromIndex(prefs[UpdateNotifyFrequencyKey])
++        val minutes = frequency.minutes ?: return
+         if (prefs[AutoCheckUpdatesKey] == false) return
+         val now = System.currentTimeMillis()
+-        if (now - (prefs[LastUpdateCheckKey] ?: 0L) < CHECK_INTERVAL_MS) return
++        if (!ignoreCooldown && now - (prefs[LastUpdateCheckKey] ?: 0L) < minutes * 60_000L) return
+         store.edit { it[LastUpdateCheckKey] = now }
+ 
+         val found = AppUpdater.checkForUpdate(skipBetas = prefs[SkipBetaUpdatesKey] ?: false)
+         store.edit { it[UpdateAvailableKey] = found != null }
+-        if (found == null || prefs[LastNotifiedUpdateKey] == found.versionCode) return
+-        if (notify(context, found)) store.edit { it[LastNotifiedUpdateKey] = found.versionCode }
++        if (found == null) {
++            NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
++            return
++        }
++        notify(context, found)
++    }
++
++    /** Runs the check on WorkManager's schedule, so the notification comes with the app closed. */
++    class Worker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
++        override suspend fun doWork(): Result {
++            checkAndNotify(applicationContext, ignoreCooldown = true)
++            return Result.success()
++        }
+     }
+ 
++    /** Matches the schedule to the frequency setting. Call at start and when the setting changes. */
++    fun schedule(context: Context, frequency: UpdateNotifyFrequency) {
++        val work = WorkManager.getInstance(context)
++        val minutes = frequency.minutes
++        if (minutes == null) {
++            work.cancelUniqueWork(WORK_NAME)
++            return
++        }
++        val request = PeriodicWorkRequestBuilder<Worker>(minutes.toLong(), TimeUnit.MINUTES)
++            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
++            .build()
++        work.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
++    }
++
++    suspend fun schedule(context: Context) =
++        schedule(context, UpdateNotifyFrequency.fromIndex(context.dataStore.data.first()[UpdateNotifyFrequencyKey]))
++
+     @SuppressLint("MissingPermission") // areNotificationsEnabled covers it
+-    private fun notify(context: Context, update: AppUpdater.Update): Boolean {
++    private fun notify(context: Context, update: AppUpdater.Update) {
+         val manager = NotificationManagerCompat.from(context)
+-        if (!manager.areNotificationsEnabled()) return false
++        if (!manager.areNotificationsEnabled()) return
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+             context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+                 NotificationChannel(
+@@ -88,6 +134,5 @@ object UpdateNotifier {
+                 .setAutoCancel(true)
+                 .build(),
+         )
+-        return true
+     }
+ }
+-- 
+2.43.0
+
+
+From 7835b5fc15fb9c5c0e6d878fd1d7982af6616886 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 10:11:34 +0800
+Subject: [PATCH 53/53] Queue: last song clears the glass controls bar (measure
+ its full footprint)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
+index 28acf08..632fff9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
+@@ -1413,7 +1413,7 @@ fun BoxScope.QueueContent(
+                             start = base.calculateStartPadding(layoutDirection),
+                             top = base.calculateTopPadding(),
+                             end = base.calculateEndPadding(layoutDirection),
+-                            bottom = base.calculateBottomPadding() + with(density) { barPx.toDp() } + 6.dp
++                            bottom = base.calculateBottomPadding() + with(density) { barPx.toDp() } + 8.dp
+                         )
+                     } else base
+                 ) // song list
+@@ -1429,8 +1429,11 @@ fun BoxScope.QueueContent(
+             Column(
+                 Modifier
+                     .align(Alignment.BottomCenter)
+-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.End))
++                    // Measured outside the insets and the margin: the list has to clear the bar's
++                    // whole footprint, system navigation inset included. Measured inside them, the
++                    // last song stopped short by exactly that inset and sat under the bar.
+                     .onSizeChanged { barPx = it.height }
++                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.End))
+                     .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                     .glassPanel(
+                         spec,
 -- 
 2.43.0
 
