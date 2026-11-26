@@ -1,7 +1,7 @@
 From 5e80648c172d424b37753f0535c6e2d353e074df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:19:43 +0800
-Subject: [PATCH 01/61] Android: the Local tab gets Stats, Settings and Account
+Subject: [PATCH 01/62] Android: the Local tab gets Stats, Settings and Account
  like Home
 
 With the Search tab on, the tabs have no bar across the top, so Home puts
@@ -66,7 +66,7 @@ index 7057102..dd43b8e 100644
 From 1445e31580e458755f53d1410c921e517538311c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 02/61] Android Local tab: chips stay at the top, search and
+Subject: [PATCH 02/62] Android Local tab: chips stay at the top, search and
  layout move into the header
 
 With the Search tab on nothing else is across the top, so the chips (and
@@ -244,7 +244,7 @@ index dd43b8e..e782829 100644
 From 8bc5e3489c1eea7321d99f89325ee8835f326386 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 03/61] Widget lyrics: redraw when the next word is due, not
+Subject: [PATCH 03/62] Widget lyrics: redraw when the next word is due, not
  once a second
 
 The widget was redrawn on a fixed second, so a word lit up to a second after
@@ -359,7 +359,7 @@ index 305c846..e555cbd 100644
 From dececfb353d3b70d287f8e042a525ac774297b15 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:26:33 +0800
-Subject: [PATCH 04/61] Home: Stats, Settings and Account sit on the Recent
+Subject: [PATCH 04/62] Home: Stats, Settings and Account sit on the Recent
  activity row
 
 With the Search tab on they were at the end of the chips row at the very
@@ -438,7 +438,7 @@ index 188dd20..2e7c44b 100644
 From fe1d90be991f7d1d35d33e5a30ae9ee3b92142a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:27:39 +0800
-Subject: [PATCH 05/61] Home: icons move to the Recent activity row only when
+Subject: [PATCH 05/62] Home: icons move to the Recent activity row only when
  the chips are hidden
 
 With the chips shown, Stats / Settings / Account stay at the end of the
@@ -476,7 +476,7 @@ index 2e7c44b..97265f8 100644
 From 665e3407905b79e776f41e5a4868fdb06fefb0e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:31:07 +0800
-Subject: [PATCH 06/61] Streams: try every visionOS identity, so one being
+Subject: [PATCH 06/62] Streams: try every visionOS identity, so one being
  closed does not cost the client
 
 Only VISIONOS was in the playback chains; VISIONOS_0_1 existed but was used
@@ -587,7 +587,7 @@ index 9fa09c8..b7e6b9d 100644
 From 45288afae5eedc09d15dec8a24f219f13a9b07ff Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:59:41 +0800
-Subject: [PATCH 07/61] Local tab: count it as a top-level page, so it gets the
+Subject: [PATCH 07/62] Local tab: count it as a top-level page, so it gets the
  top bar or loses its height
 
 The top bar (search, Stats, Settings, Account) and its reserved height were
@@ -694,7 +694,7 @@ index e7b8f84..1a0f38e 100644
 From 18ed6c865483771adbff0cdd8b3d36d5f696ca25 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 18 Nov 2026 21:28:57 +0800
-Subject: [PATCH 08/61] Desktop mini player lyrics follow the Fade / Sweep
+Subject: [PATCH 08/62] Desktop mini player lyrics follow the Fade / Sweep
  setting
 
 The line being sung in the mini player always lit its words with the
@@ -861,7 +861,7 @@ index 6f8516a..7c40263 100644
 From 3129581ba5730a051407789656cc3152523538dd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:24:59 +0800
-Subject: [PATCH 09/61] Widget lyrics: highlight style and smooth-word
+Subject: [PATCH 09/62] Widget lyrics: highlight style and smooth-word
  settings, lit by stage within a word
 
 The widget lit a whole word at once. Words now carry their end times, and
@@ -1251,7 +1251,7 @@ index 4a08bf5..7b86071 100644
 From 2446dd8084d2c684b52868fa509ad1f991807523 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:30:04 +0800
-Subject: [PATCH 10/61] Add Simple reactive player background (ported from
+Subject: [PATCH 10/62] Add Simple reactive player background (ported from
  InterTune's Living blur)
 
 Cover reduced to soft colour patches that move with the music, driven by an
@@ -4085,7 +4085,7 @@ index 1bd80ea..b2ab9d7 100644
 From 6efc00004937c393e91dafd102c663636991694f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:34:41 +0800
-Subject: [PATCH 11/61] Port InterTune radio fixes: dotted song lengths and
+Subject: [PATCH 11/62] Port InterTune radio fixes: dotted song lengths and
  signed-out account id
 
 parseTime reads 3.34 as well as 3:34 (Indonesian, Finnish, Danish), so radios and
@@ -4318,7 +4318,7 @@ index 8b44a6e..55fc6f9 100644
 From 722dbcaa4932a81a7a92b879717db447649846b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:34:54 +0800
-Subject: [PATCH 12/61] Radio pages add only songs the queue has not already
+Subject: [PATCH 12/62] Radio pages add only songs the queue has not already
  had
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -4399,7 +4399,7 @@ index 3e0ddcd..cbd6e59 100644
 From 0eeff7214979b8dc9a67b766fac27af17e743f81 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 10:35:31 +0800
-Subject: [PATCH 13/61] Widget lyrics: a new line slides up into place in
+Subject: [PATCH 13/62] Widget lyrics: a new line slides up into place in
  stages instead of jumping
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -4521,7 +4521,7 @@ index cd8c958..4064b7d 100644
 From 74e445a8e832b1ccfe0072c35b60a2445dedd921 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 15:41:01 +0800
-Subject: [PATCH 14/61] Discord presence: clear before closing and start each
+Subject: [PATCH 14/62] Discord presence: clear before closing and start each
  session from an empty card (from Metrolist)
 
 Closing the app or rebuilding the connection now clears the activity first, bounded to
@@ -4788,7 +4788,7 @@ index 995871d..1776e46 100644
 From 26123a4eb463919897d6e6e56a95e62c9171b8e1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 15:41:30 +0800
-Subject: [PATCH 15/61] AutoEQ: match one headphone to another (EQ Studio and
+Subject: [PATCH 15/62] AutoEQ: match one headphone to another (EQ Studio and
  Settings > Equaliser)
 
 Pick the headphones in use and the pair to imitate; the difference of their AutoEQ
@@ -5108,7 +5108,7 @@ index b2ab9d7..bbba72a 100644
 From 9dfc2bfdbf1e29313f9ea536f06794d1b51cb9e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 17:12:59 +0800
-Subject: [PATCH 16/61] Fix the Simple reactive colours string: escape the
+Subject: [PATCH 16/62] Fix the Simple reactive colours string: escape the
  apostrophe (aapt refused the resource)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5137,7 +5137,7 @@ index bbba72a..920c0f2 100644
 From 3fd6086a13929d77938168d97cc6bc1f4c8c97f6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 18:50:10 +0800
-Subject: [PATCH 17/61] Widget lyrics style preference: EnumListPreference
+Subject: [PATCH 17/62] Widget lyrics style preference: EnumListPreference
  needs its icon argument
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5165,7 +5165,7 @@ index bbfe850..58883cf 100644
 From 1228f794fb13cd5b836e88a7522cdd03a3eab860 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 19:39:16 +0800
-Subject: [PATCH 18/61] Default music player: MainActivity answers
+Subject: [PATCH 18/62] Default music player: MainActivity answers
  MAIN/MUSIC_PLAYER/APP_MUSIC and audio VIEW; scan folders compared as folders,
  not as text
 
@@ -5304,7 +5304,7 @@ index 57b2cdf..99da1fb 100644
 From d724de8ed967cfdf9e495e84c0a7086ce41328ea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 19/61] Links: a link that starts the app is followed, and
+Subject: [PATCH 19/62] Links: a link that starts the app is followed, and
  YouTube Music album/artist and shorts links open
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5408,7 +5408,7 @@ index 604815d..709d82e 100644
 From ced9b87f3edadf7716cb04509e985c145b81866e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 20/61] Widget: cached cover and seek bar, eased line slide,
+Subject: [PATCH 20/62] Widget: cached cover and seek bar, eased line slide,
  and spare height on tall widgets goes to the lyrics
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5588,7 +5588,7 @@ index 0000000..0e7ab96
 From cd8a5cfaa72b761724db87156637d5283b5117e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:46:21 +0800
-Subject: [PATCH 21/61] AutoEQ matching reuses the AutoEQ search dialog instead
+Subject: [PATCH 21/62] AutoEQ matching reuses the AutoEQ search dialog instead
  of a second copy
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -5967,7 +5967,7 @@ index 920c0f2..ecb8dfb 100644
 From 536864aff7e04d97ae13e39260b49dd1ce6a31e4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 20:58:51 +0800
-Subject: [PATCH 22/61] AutoEQ: search the full database by source, add
+Subject: [PATCH 22/62] AutoEQ: search the full database by source, add
  Databases dialog; add open-links settings entry
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6537,7 +6537,7 @@ index ecb8dfb..37e6249 100644
 From fb9e099ea590c38ba344dd324f4ca96ec8227fe8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 21:36:03 +0800
-Subject: [PATCH 23/61] Fix crash opening AutoEQ Databases: bound the list
+Subject: [PATCH 23/62] Fix crash opening AutoEQ Databases: bound the list
  height
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6566,7 +6566,7 @@ index a2a12ce..a107833 100644
 From 48813c093df86596d6083dc1b965e385e1e78356 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 18:47:45 +0800
-Subject: [PATCH 24/61] BetterLyrics: fall back to the older host when the new
+Subject: [PATCH 24/62] BetterLyrics: fall back to the older host when the new
  one has nothing
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -6661,7 +6661,7 @@ index 803d169..6f0392c 100644
 From 63b032bc02e4c44a72dc73fbb7d0b7cf7bbeb368 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 18:55:06 +0800
-Subject: [PATCH 25/61] BetterLyrics: log which host answered each lookup
+Subject: [PATCH 25/62] BetterLyrics: log which host answered each lookup
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -6721,7 +6721,7 @@ index 6f0392c..888576c 100644
 From cc4df1cc9b2463c3d72240ed0a84ec50a8795312 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:12:00 +0800
-Subject: [PATCH 26/61] Tickable, reorderable icons beside and in the search
+Subject: [PATCH 26/62] Tickable, reorderable icons beside and in the search
  field; replace the identify button placement
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -7192,7 +7192,7 @@ index 37e6249..728db04 100644
 From ffa9d4f35559ab03ae2dbe31b7b9e2218d71fca0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:17:40 +0800
-Subject: [PATCH 27/61] Liquid glass: joined mini player and tabs panel, top
+Subject: [PATCH 27/62] Liquid glass: joined mini player and tabs panel, top
  bar pill, Appearance settings
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -7856,7 +7856,7 @@ index d3954fa..b65c0b4 100644
 From 14cb6b7820bddfc9d0a8f183b16880d4e63dfc7a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 20 Nov 2026 19:20:52 +0800
-Subject: [PATCH 28/61] Liquid glass for floating buttons through a glass host,
+Subject: [PATCH 28/62] Liquid glass for floating buttons through a glass host,
  with its own toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -8259,7 +8259,7 @@ index b380a56..2332d60 100644
 From 29d9a70019b04af3efa690974d6db14777ef4774 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 10:13:40 +0800
-Subject: [PATCH 29/61] Fix compile errors in liquid glass dialog and icon
+Subject: [PATCH 29/62] Fix compile errors in liquid glass dialog and icon
  lists
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -8323,7 +8323,7 @@ index 8a4baa9..5769e86 100644
 From 2bed81fc87cc6aec7ff6fde8d9d0687352fa347c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 10:15:05 +0800
-Subject: [PATCH 30/61] Liquid glass back buttons with their own toggle
+Subject: [PATCH 30/62] Liquid glass back buttons with their own toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -9400,7 +9400,7 @@ index 2332d60..7796d6c 100644
 From b7f85254e7dc63e58e4b41cb1e6b011fe23f9ec4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 11:11:43 +0800
-Subject: [PATCH 31/61] Liquid glass: remaining back buttons, queue bar pane
+Subject: [PATCH 31/62] Liquid glass: remaining back buttons, queue bar pane
  over the list, queue toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -9882,7 +9882,7 @@ index 7796d6c..12aa376 100644
 From fd9788e0e05c5c5f43f941c48fa3273c96a4b772 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 11:29:23 +0800
-Subject: [PATCH 32/61] Fix missing imports in BottomSheet and Queue
+Subject: [PATCH 32/62] Fix missing imports in BottomSheet and Queue
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -9923,7 +9923,7 @@ index 07895f0..91af733 100644
 From 77c69cd1b30740dc90c1110624222fc638bd7480 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:08:42 +0800
-Subject: [PATCH 33/61] Liquid glass: queue pane above system buttons, hosted
+Subject: [PATCH 33/62] Liquid glass: queue pane above system buttons, hosted
  controls clip and fade with their screen, glass like/share, settings as a
  screen
 
@@ -10440,7 +10440,7 @@ index 12aa376..e450437 100644
 From af858be045c5b3aa51321e61c052edef565ed4d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:09:35 +0800
-Subject: [PATCH 34/61] Add LyricsPlus (YouLy+) as a lyrics provider
+Subject: [PATCH 34/62] Add LyricsPlus (YouLy+) as a lyrics provider
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -10693,7 +10693,7 @@ index 0000000..339ff43
 From 416154c4103fbd8ed69cb5097feb37f84e5d2f9e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 18:10:20 +0800
-Subject: [PATCH 35/61] Lyrics: search with InterTune's cleaned title, album
+Subject: [PATCH 35/62] Lyrics: search with InterTune's cleaned title, album
  and first artist; ask boidu host first
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -10884,7 +10884,7 @@ index 888576c..aa36196 100644
 From b078b11df5066c9b6304cd50a57526c984554066 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 19:13:03 +0800
-Subject: [PATCH 36/61] LRCLIB: read the new word-synced lyricsfile
+Subject: [PATCH 36/62] LRCLIB: read the new word-synced lyricsfile
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11099,7 +11099,7 @@ index 35e4ca2..2ab36fe 100644
 From ce77d2040daef1c7d9f896e55d369fca586548da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 21 Nov 2026 19:21:01 +0800
-Subject: [PATCH 37/61] LRCLIB word-synced lyrics as their own provider
+Subject: [PATCH 37/62] LRCLIB word-synced lyrics as their own provider
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11252,7 +11252,7 @@ index 5ed5d86..aff13a2 100644
 From 3e6101c778bfd2f2658efe593e35cdd1433c9bb5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 16:56:05 +0800
-Subject: [PATCH 38/61] Liquid glass for the equalizer cards (with a settings
+Subject: [PATCH 38/62] Liquid glass for the equalizer cards (with a settings
  toggle); denser glass back buttons with theme-coloured icons
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -11520,7 +11520,7 @@ index e450437..221240c 100644
 From 00b554477307fb3f06812701e0cea84906b6e623 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 16:56:13 +0800
-Subject: [PATCH 39/61] BackButton: dp import
+Subject: [PATCH 39/62] BackButton: dp import
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -11547,7 +11547,7 @@ index 1d6b719..947919f 100644
 From bd14a6da2ce7fd174cd544743a946050ce564957 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:05:24 +0800
-Subject: [PATCH 40/61] Precache the next N songs (slider, default 2) and
+Subject: [PATCH 40/62] Precache the next N songs (slider, default 2) and
  smooth notification ducking
 
 Both under Settings > Experimental.
@@ -11913,7 +11913,7 @@ index a753533..724b8f5 100644
 From 1db9f4a71152dd083f3ae6f83481091950d0c106 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:07:19 +0800
-Subject: [PATCH 41/61] Retry unavailable tracks under the ID YouTube Music now
+Subject: [PATCH 41/62] Retry unavailable tracks under the ID YouTube Music now
  serves (resolve_url, from innertubex 0.11.9)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12035,7 +12035,7 @@ index 0000000..fd28551
 From 6da132ac1d6253b2f74d5c02b9629bef070f8ab7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:18:03 +0800
-Subject: [PATCH 42/61] Hold the next button to preview the next song (with
+Subject: [PATCH 42/62] Hold the next button to preview the next song (with
  optional label)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12319,7 +12319,7 @@ index 626cc45..9e4f62f 100644
 From ccb9a10362943d182a05ec6b8ca8802c4a60713d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 22 Nov 2026 22:26:38 +0800
-Subject: [PATCH 43/61] Fix combine() arity: fold duck and preview factors into
+Subject: [PATCH 43/62] Fix combine() arity: fold duck and preview factors into
  one flow
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12354,7 +12354,7 @@ index 169a2d8..3c42823 100644
 From 9761e33a3b322a1c81f97ce32db58aa2e5c99a19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 23 Nov 2026 10:44:29 +0800
-Subject: [PATCH 44/61] Preview label: a small translucent Previewing pill,
+Subject: [PATCH 44/62] Preview label: a small translucent Previewing pill,
  like the lyrics-type tag
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12438,7 +12438,7 @@ index d365d6f..b1d4303 100644
 From b82921fd516f5d2681def9ab731a8798644bc20c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 23 Nov 2026 11:09:46 +0800
-Subject: [PATCH 45/61] Liquid glass for the settings search field
+Subject: [PATCH 45/62] Liquid glass for the settings search field
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -12505,7 +12505,7 @@ index 8ad67eb..3b606e7 100644
 From ea78f14b7c71abfe166d516c7c923d4281786111 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 11:35:45 +0800
-Subject: [PATCH 46/61] Equaliser: a draggable scrollbar over the curve for the
+Subject: [PATCH 46/62] Equaliser: a draggable scrollbar over the curve for the
  band strip
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12669,7 +12669,7 @@ index 1485d1a..9cd2a6d 100644
 From 29bbd2fb73f5433befe2d70ef4e18539d8a5e426 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 12:18:35 +0800
-Subject: [PATCH 47/61] Equaliser scrollbar: a visible track behind the thumb
+Subject: [PATCH 47/62] Equaliser scrollbar: a visible track behind the thumb
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -12706,7 +12706,7 @@ index 9cd2a6d..f686388 100644
 From ae6465ae7eb4e13571a213cd193a66d6dbaf872b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 12:48:15 +0800
-Subject: [PATCH 48/61] Equaliser scrollbar: sit between the curve's dotted
+Subject: [PATCH 48/62] Equaliser scrollbar: sit between the curve's dotted
  lines
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -12781,7 +12781,7 @@ index f686388..9ca8a21 100644
 From c0d7b11fb00c3e3d7241203d5ef76da4d585bde5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 24 Nov 2026 17:21:28 +0800
-Subject: [PATCH 49/61] Android: ducking and precache on by default, ordered
+Subject: [PATCH 49/62] Android: ducking and precache on by default, ordered
  with the slider under precache, better icons; balance works with the
  equaliser off
 
@@ -12937,7 +12937,7 @@ index 9e4f62f..0363e15 100644
 From 29cd2ce527c60dd9caa8cb8607f53968b2907788 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 09:15:25 +0800
-Subject: [PATCH 50/61] Android: Settings can't vanish from both icon lists,
+Subject: [PATCH 50/62] Android: Settings can't vanish from both icon lists,
  Like in player menu, update notification that opens the updater and downloads
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13292,7 +13292,7 @@ index 221240c..c3e0dfb 100644
 From 1b96708c00d6a0862f76610cb97aaf5b86395299 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 09:21:01 +0800
-Subject: [PATCH 51/61] Android: player menu skips buttons already on the row;
+Subject: [PATCH 51/62] Android: player menu skips buttons already on the row;
  prompt when Settings icon is locked
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13473,7 +13473,7 @@ index c3e0dfb..7a63e4a 100644
 From 28afe12a7ae3a0119885dc62316ae9c3b44f499e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 09:25:56 +0800
-Subject: [PATCH 52/61] Android: update notification frequency slider
+Subject: [PATCH 52/62] Android: update notification frequency slider
  (always/30m/1h/2h/4h/never), background worker
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13730,7 +13730,7 @@ index b6bb84b..ba5b165 100644
 From 7835b5fc15fb9c5c0e6d878fd1d7982af6616886 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 10:11:34 +0800
-Subject: [PATCH 53/61] Queue: last song clears the glass controls bar (measure
+Subject: [PATCH 53/62] Queue: last song clears the glass controls bar (measure
  its full footprint)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13772,7 +13772,7 @@ index 28acf08..632fff9 100644
 From de2fb368983f8c09f90ca8606f2940da9a380225 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 12:08:21 +0800
-Subject: [PATCH 54/61] Fix unescaped apostrophe in settings_icon_cannot_hide
+Subject: [PATCH 54/62] Fix unescaped apostrophe in settings_icon_cannot_hide
  string
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13801,7 +13801,7 @@ index 7a63e4a..0d04fd7 100644
 From d04ffb2937a10c6de757b48938c079222c6c99e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 17:16:27 +0800
-Subject: [PATCH 55/61] Audio: limiter after the pitch shifter, so pitched-up
+Subject: [PATCH 55/62] Audio: limiter after the pitch shifter, so pitched-up
  loud tracks do not clip
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -13986,7 +13986,7 @@ index 7d9c542..c92b8f5 100644
 From 03bf00cef0aa2ae734076e7622fa7595d8eab688 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 17:19:44 +0800
-Subject: [PATCH 56/61] Playlist import: CSV and text, next to M3U, with
+Subject: [PATCH 56/62] Playlist import: CSV and text, next to M3U, with
  matching shared
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -14418,7 +14418,7 @@ index 0d04fd7..3b96125 100644
 From 02b887e11b396a06e7d216c9b78287f6134c529f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 17:31:02 +0800
-Subject: [PATCH 57/61] Equaliser: curve in a rounded container, full-height
+Subject: [PATCH 57/62] Equaliser: curve in a rounded container, full-height
  scroll thumb inside it; Studio shares the panel's strip and container
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -14644,7 +14644,7 @@ index 38b8ec9..13da3d5 100644
 From 4239b5dac9d752013af0be054c506b65019507e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 18:26:08 +0800
-Subject: [PATCH 58/61] Fix build: media3 1.8 chain interface, SongEntity
+Subject: [PATCH 58/62] Fix build: media3 1.8 chain interface, SongEntity
  localPath
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -14718,7 +14718,7 @@ index ef4e19f..136acd3 100644
 From 1f38e31c97e1c390350c26d42e835abfdbee6f22 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 25 Nov 2026 22:14:56 +0800
-Subject: [PATCH 59/61] Fix build: media3 1.8 chain takes the input Format
+Subject: [PATCH 59/62] Fix build: media3 1.8 chain takes the input Format
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -14768,7 +14768,7 @@ index 9c6eed4..793903b 100644
 From 6cc1d0afd55b096a391c857db909f515df16faec Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 26 Nov 2026 10:51:37 +0800
-Subject: [PATCH 60/61] Glass: search results bar and settings search follow
+Subject: [PATCH 60/62] Glass: search results bar and settings search follow
  the Search and top bar toggle
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -14847,7 +14847,7 @@ index 3b606e7..9fee308 100644
 From a6ac70fba6a71fab31fe8aba46b22ee0206d763e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 26 Nov 2026 12:08:49 +0800
-Subject: [PATCH 61/61] Fix SearchBar import line
+Subject: [PATCH 61/62] Fix SearchBar import line
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
@@ -14868,6 +14868,74 @@ index a325c2a..1d1871d 100644
  import android.annotation.SuppressLint
  import androidx.activity.compose.BackHandler
  import androidx.compose.animation.core.CubicBezierEasing
+-- 
+2.43.0
+
+
+From 3cfdd6a769e01e883d73aa10c98c9cb323edcdc2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 26 Nov 2026 12:23:20 +0800
+Subject: [PATCH 62/62] Glass: search bar outside the nav host uses the app
+ backdrop; host also on for top-bar glass
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../java/com/dd3boh/outertune/MainActivity.kt  |  2 +-
+ .../dd3boh/outertune/ui/component/SearchBar.kt | 18 +++++++++++-------
+ 2 files changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index d0b7a62..d523639 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -1279,7 +1279,7 @@ class MainActivity : ComponentActivity() {
+                                         )
+                                 ) {
+                                     CompositionLocalProvider(LocalGlassActiveEntry provides navBackStackEntry?.id) {
+-                                        GlassHostBox(enabled = glassActive && (glassFab || glassControls)) { navHost() }
++                                        GlassHostBox(enabled = glassActive && (glassFab || glassControls || glassTopBar)) { navHost() }
+                                     }
+                                 }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/SearchBar.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/SearchBar.kt
+index 1d1871d..1396afb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/SearchBar.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/SearchBar.kt
+@@ -201,13 +201,16 @@ fun SearchBar(
+ 
+         // Resting bar (home, and the results after a search) is glass when "Search and top bar" is
+         // on; the full-screen suggestions state stays opaque so the list is readable.
+-        // This bar lives inside the nav host, so it must draw through the glass host (like the
+-        // settings search field), never read the app backdrop directly.
++        // Drawn through the glass host when the bar sits inside the nav host (the Search tab), and
++        // straight on the app backdrop when it sits outside it (home and the results page).
+         val glassHost = LocalGlassHost.current
+         val glassConfig = com.dd3boh.outertune.ui.utils.LocalGlassConfig.current
+-        val glass = if (animationProgress == 0f && glassHost != null && glassConfig.topBar) {
+-            com.dd3boh.outertune.ui.utils.GlassSpec(glassHost.backdrop, glassConfig.intensity)
+-        } else null
++        val appGlass = com.dd3boh.outertune.ui.utils.rememberGlass(com.dd3boh.outertune.ui.utils.GlassKind.TOP_BAR)
++        val glass = when {
++            animationProgress != 0f -> null
++            glassHost != null -> if (glassConfig.topBar) com.dd3boh.outertune.ui.utils.GlassSpec(glassHost.backdrop, glassConfig.intensity) else null
++            else -> appGlass
++        }
+         Surface(
+             shape = animatedShape,
+             color = when {
+@@ -225,8 +228,9 @@ fun SearchBar(
+                 )
+                 .size(width = width, height = height)
+                 .then(
+-                    if (glass != null && glassHost != null) {
+-                        Modifier.drawnBy(glassHost).graphicsLayer().glassPanel(glass, animatedShape)
++                    if (glass != null) {
++                        if (glassHost != null) Modifier.drawnBy(glassHost).graphicsLayer().glassPanel(glass, animatedShape)
++                        else Modifier.glassPanel(glass, animatedShape)
+                     } else Modifier
+                 )
+         ) {
 -- 
 2.43.0
 
